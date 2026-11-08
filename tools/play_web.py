@@ -17,11 +17,16 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from urllib.parse import parse_qs, urlparse
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "api"))
+import _bots  # noqa: E402
 from _core import ARENA_DIR, BadRequest, handle  # noqa: E402
 
-INDEX = ROOT / "public" / "index.html"
+PUBLIC = ROOT / "public"
+TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+         ".css": "text/css; charset=utf-8", ".json": "application/json"}
 BOT_PATH = None
 
 
@@ -39,18 +44,31 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            self._send(200, INDEX.read_bytes(), "text/html; charset=utf-8")
+        url = urlparse(self.path)
+        if url.path == "/api/bots":
+            query = {k: v[0] for k, v in parse_qs(url.query).items()}
+            try:
+                return self._send(200, _bots.handle_get(query))
+            except BadRequest as exc:
+                return self._send(404, {"error": str(exc)})
+        name = "index.html" if url.path == "/" else url.path.lstrip("/")
+        path = (PUBLIC / name).resolve()
+        if PUBLIC.resolve() in path.parents and path.is_file() and path.suffix in TYPES:
+            self._send(200, path.read_bytes(), TYPES[path.suffix])
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/api/move":
+        path = urlparse(self.path).path
+        if path not in ("/api/move", "/api/bots"):
             return self._send(404, {"error": "not found"})
         length = int(self.headers.get("Content-Length") or 0)
         try:
             req = json.loads(self.rfile.read(length) or b"{}")
-            self._send(200, handle(req, BOT_PATH))
+            if path == "/api/move":
+                self._send(200, handle(req, BOT_PATH))
+            else:
+                self._send(200, _bots.handle_post(req))
         except (BadRequest, ValueError) as exc:
             self._send(400, {"error": str(exc) or "Request không hợp lệ"})
 

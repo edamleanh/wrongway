@@ -47,6 +47,18 @@ Trình duyệt tự mở <http://localhost:8000>. Nếu không, bạn mở link 
 
 Tùy chọn khác: `--port 8080`, `--no-browser`, `--bot greedy` (đấu với một bot khác trong `submissions/`). Bấm `Ctrl+C` để dừng.
 
+### 1a. Đấu bot với bot, upload bot mới
+
+Mở <http://localhost:8000/arena.html> (hoặc bấm **"Đấu bot vs bot →"** ở trang chính).
+
+- **Chọn trận:** chọn bot **đi trước** (xuất phát ở dưới) và bot **đi sau** (xuất phát ở trên). Nút ⇅ đổi bên. Chọn thêm giới hạn thời gian mỗi nước (1, 2 hoặc 5 giây) và tốc độ xem, rồi bấm **Bắt đầu**.
+- **Upload bot:** đặt tên (chữ không dấu, số, `_` hoặc `-`), chọn file `.py` có hàm `choose_action(observation)` giống bài nộp Arena (tối đa 100 KB), rồi bấm **Upload**. Bot mới xuất hiện trong danh sách cho mọi người.
+- **Kết quả:** người thắng, số lượt, và thống kê từng bot (số nước hợp lệ, quá giờ, nước sai, lỗi, lần nghĩ lâu nhất). Nếu bot bị lỗi, traceback được hiện ra để sửa.
+
+**Bot chạy ngay trong trình duyệt** bằng [Pyodide](https://pyodide.org) (Python trên WebAssembly), trong một Web Worker. Server chỉ lưu và trả mã nguồn, **không bao giờ chạy code người khác upload**. Luật lấy từ chính `environment.py` của Arena; bot lỗi, quá giờ hoặc trả nước sai thì mất lượt, giống Arena. Bot bị treo quá lâu sẽ bị ngắt và xử thua. Lần đầu mở trang cần tải khoảng 10 MB, và Python trên WebAssembly chậm hơn khoảng 2–3 lần, nên giới hạn mặc định là 2 giây mỗi nước.
+
+Khi chạy cục bộ, bot upload được lưu trong thư mục `uploads/` (không đưa lên git).
+
 ### 1b. Deploy lên Vercel
 
 Repo đã cấu hình sẵn để deploy:
@@ -56,6 +68,15 @@ Repo đã cấu hình sẵn để deploy:
 3. Bấm **Deploy**.
 
 Hoặc dùng Vercel CLI: `npm i -g vercel`, rồi chạy `vercel` (bản thử) hoặc `vercel --prod` (bản chính).
+
+**Bật kho lưu bot upload** (cần cho tính năng upload trên Vercel):
+
+1. Trong project trên Vercel, vào tab **Storage**, bấm **Create Database**, chọn **Upstash for Redis** (gói Free).
+2. Bấm **Connect** để nối database với project. Vercel tự thêm các biến môi trường `KV_REST_API_URL` và `KV_REST_API_TOKEN`.
+3. (Không bắt buộc) Để xóa được bot, vào **Settings → Environment Variables** và thêm `ADMIN_PASSWORD` với mật khẩu bạn chọn.
+4. Vào tab **Deployments** và bấm **Redeploy** để áp dụng biến môi trường.
+
+Nếu chưa bật kho lưu, trang đấu bot vẫn chạy với 4 bot có sẵn, chỉ là chưa upload được.
 
 Cách hoạt động: `public/index.html` là trang tĩnh. `api/move.py` là serverless function Python, dùng `api/_core.py` cùng Arena và bot. Server **không lưu trạng thái**: trình duyệt giữ ván cờ và gửi kèm mỗi request. Nhờ vậy nhiều người chơi cùng lúc được, mỗi người một ván riêng. Bản chạy cục bộ `tools/play_web.py` dùng chung đúng code này.
 
@@ -103,8 +124,11 @@ Mỗi thế hệ sinh vài bộ trọng số đột biến, cho chúng đấu v�
 │   └── submissions/
 │       ├── MSSV.py              # bot của mình
 │       └── greedy.py, random_agent.py, wall_builder.py, TEMPLATE.py
-├── public/index.html            # giao diện chơi với bot
-├── api/                         # serverless function cho Vercel (move.py, _core.py)
+├── public/
+│   ├── index.html               # chơi với bot
+│   ├── arena.html               # đấu bot vs bot, upload bot
+│   └── match-worker.js          # chạy trận trong trình duyệt (Pyodide)
+├── api/                         # Vercel: move.py (người vs bot), bots.py (thư viện bot)
 ├── vercel.json
 ├── tools/
 │   ├── play_web.py              # chạy giao diện chơi cục bộ
