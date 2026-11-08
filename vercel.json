@@ -4,6 +4,10 @@
     "api/move.py": {
       "maxDuration": 10,
       "includeFiles": "wrongway-student/wrongway/**"
+    },
+    "api/bots.py": {
+      "maxDuration": 10,
+      "includeFiles": "wrongway-student/wrongway/**"
     }
   }
 }

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrongway Bot Arena</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #1f2328; --muted: #6b6f76; --line: #e2ddd2;
+    --cell: #e9e3d6; --goal-a: #d7e6f7; --goal-b: #f6dfd3;
+    --a: #2563c9; --a-soft: rgba(37,99,201,.16); --b: #d4542b; --b-soft: rgba(212,84,43,.16);
+    --ok: #2f8f5b; --bad: #c23b3b;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --panel: #1d2024; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2e3238;
+      --cell: #2a2e34; --goal-a: #1e3350; --goal-b: #4a2a1f;
+      --a: #5b93ee; --a-soft: rgba(91,147,238,.2); --b: #ef7b52; --b-soft: rgba(239,123,82,.2);
+      --ok: #4cbf82; --bad: #e86060; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --panel: #1d2024; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2e3238;
+    --cell: #2a2e34; --goal-a: #1e3350; --goal-b: #4a2a1f;
+    --a: #5b93ee; --a-soft: rgba(91,147,238,.2); --b: #ef7b52; --b-soft: rgba(239,123,82,.2);
+    --ok: #4cbf82; --bad: #e86060; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px 16px 40px; }
+  a { color: inherit; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+  h1 span { color: var(--muted); font-weight: 500; }
+  .nav { display: flex; gap: 8px; align-items: center; }
+  .nav a, .theme { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 8px; padding: 5px 10px; text-decoration: none; font: inherit; font-size: 13px; cursor: pointer; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px; }
+  .side { display: grid; gap: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; margin: 2px 4px 14px; min-height: 26px; flex-wrap: wrap; }
+  .status .sub { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: auto; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+  .running .dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  svg { width: 100%; height: auto; display: block; }
+  .cell { fill: var(--cell); }
+  .goal-a { fill: var(--goal-a); }
+  .goal-b { fill: var(--goal-b); }
+  .wall.a { fill: var(--a); } .wall.b { fill: var(--b); }
+  .wall.new { animation: fade .3s ease-out; } @keyframes fade { from { opacity: 0; } }
+  .pawn { transition: transform .22s cubic-bezier(.3,.7,.3,1); }
+  .pawn circle { stroke: var(--panel); stroke-width: 3; }
+  .pawn text { font-weight: 700; font-size: 14px; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+  .vs { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  .slot { display: grid; gap: 4px; }
+  .slot label { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .stack { display: grid; gap: 8px; }
+  select, input[type=text] { width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  input[type=file] { font: inherit; font-size: 13px; color: var(--muted); max-width: 100%; }
+  .swap { height: 38px; width: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; font-size: 17px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 4px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .field-label { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .row { display: flex; gap: 8px; }
+  .btn { flex: 1; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 9px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .msg { font-size: 13px; min-height: 18px; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--bad); white-space: pre-wrap; }
+  .result { display: grid; gap: 8px; }
+  .banner { padding: 10px 12px; border-radius: 10px; font-weight: 600; }
+  .banner.a { background: var(--a-soft); color: var(--a); }
+  .banner.b { background: var(--b-soft); color: var(--b); }
+  .banner.draw { background: var(--bg); color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 4px; border-top: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; border-top: 0; }
+  .errbox { font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 160px; overflow: auto; white-space: pre-wrap; color: var(--bad); }
+  .lib { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 300px; overflow: auto; }
+  .lib li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .lib .n { font-weight: 600; }
+  .lib .m { font-size: 12px; color: var(--muted); }
+  .lib button { border: 1px solid var(--line); background: transparent; color: var(--bad); border-radius: 7px; padding: 3px 8px; cursor: pointer; font: inherit; font-size: 12px; }
+  .note { font-size: 12.5px; color: var(--muted); }
+  .chip { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Wrongway <span>· đấu bot với bot</span></h1>
+    <div class="nav">
+      <a href="/">← Chơi với bot</a>
+      <button class="theme" id="theme" title="Đổi giao diện sáng/tối">◐</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="card">
+      <div class="status" id="status"><span class="dot" id="dot"></span><span id="status-text">Chọn hai bot rồi bấm Bắt đầu</span><span class="sub" id="status-sub"></span></div>
+      <svg id="board" viewBox="0 0 528 528" aria-label="Bàn cờ 9x9"></svg>
+    </section>
+
+    <aside class="side">
+      <div class="card stack">
+        <h2>Trận đấu</h2>
+        <div class="vs">
+          <div class="stack">
+            <div class="slot">
+              <label><span class="chip" style="background:var(--a)"></span>Đi trước · xuất phát ở dưới</label>
+              <select id="bot0"></select>
+            </div>
+            <div class="slot">
+              <label><span class="chip" style="background:var(--b)"></span>Đi sau · xuất phát ở trên</label>
+              <select id="bot1"></select>
+            </div>
+          </div>
+          <button class="swap" id="swap" title="Đổi bên đi trước / đi sau">⇅</button>
+        </div>
+        <div class="field-label">Thời gian tối đa mỗi nước</div>
+        <div class="seg" id="limit-seg">
+          <button data-v="1">1 giây</button><button data-v="2" class="on">2 giây</button><button data-v="5">5 giây</button>
+        </div>
+        <div class="field-label">Tốc độ xem</div>
+        <div class="seg" id="speed-seg">
+          <button data-v="700">Chậm</button><button data-v="250" class="on">Vừa</button><button data-v="40">Nhanh</button><button data-v="0">Tức thì</button>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="start">Bắt đầu</button>
+          <button class="btn" id="stop" disabled>Dừng</button>
+        </div>
+        <div class="note">Bot chạy ngay trong trình duyệt của bạn (Pyodide, chậm hơn Python thường khoảng 2–3 lần). Lần đầu cần tải khoảng 10 MB.</div>
+      </div>
+
+      <div class="card result" id="result-card" hidden>
+        <h2>Kết quả</h2>
+        <div class="banner" id="banner"></div>
+        <table>
+          <thead><tr><th>Bot</th><th>OK</th><th>Quá giờ</th><th>Sai</th><th>Lỗi</th><th>Chậm nhất</th></tr></thead>
+          <tbody id="stats"></tbody>
+        </table>
+        <div class="errbox" id="errbox" hidden></div>
+      </div>
+
+      <div class="card stack">
+        <h2>Upload bot</h2>
+        <input type="text" id="up-name" placeholder="Tên bot (vd: an_minimax)" maxlength="32">
+        <input type="text" id="up-author" placeholder="Tác giả (không bắt buộc)" maxlength="40">
+        <input type="text" id="up-desc" placeholder="Mô tả ngắn (không bắt buộc)" maxlength="120">
+        <input type="file" id="up-file" accept=".py,text/x-python">
+        <button class="btn primary" id="upload">Upload</button>
+        <div class="msg" id="up-msg"></div>
+        <div class="note">Một file <code>.py</code> có hàm <code>choose_action(observation)</code>, giống bài nộp Arena. Tối đa 100 KB.</div>
+      </div>
+
+      <div class="card">
+        <h2>Bot đã upload</h2>
+        <ul class="lib" id="lib"></ul>
+        <div class="note" id="lib-note"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const S = 48, G = 12, U = S + G, NS = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id);
+  const svg = $("board");
+  const opts = { limit: 2, speed: 250 };
+  let library = { bots: [] }, worker = null, running = false, codeCache = {};
+
+  // ---------- bàn cờ (chỉ xem)
+  const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  const layerBoard = mk("g", {}, svg), layerWalls = mk("g", {}, svg), layerPawns = mk("g", {}, svg);
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++)
+    mk("rect", { x: c * U, y: r * U, width: S, height: S, rx: 7,
+                 class: "cell" + (r === 0 ? " goal-a" : r === 8 ? " goal-b" : "") }, layerBoard);
+  const pawns = [0, 1].map(p => {
+    const g = mk("g", { class: "pawn" }, layerPawns);
+    mk("circle", { r: 17, fill: p === 0 ? "var(--a)" : "var(--b)" }, g);
+    mk("text", {}, g).textContent = p === 0 ? "1" : "2";
+    return g;
+  });
+  let wallOwners = {};
+
+  function draw(state, newestKey) {
+    layerWalls.textContent = "";
+    for (const [o, list] of [["H", state.walls.horizontal], ["V", state.walls.vertical]]) {
+      for (const [r, c] of list) {
+        const k = o + r + "," + c;
+        const rect = o === "H" ? { x: c * U, y: r * U + S, width: 2 * S + G, height: G }
+                               : { x: c * U + S, y: r * U, width: G, height: 2 * S + G };
+        mk("rect", { ...rect, rx: 3, class: "wall " + (wallOwners[k] === 1 ? "b" : "a") + (k === newestKey ? " new" : "") }, layerWalls);
+      }
+    }
+    state.positions.forEach(([r, c], p) => {
+      pawns[p].style.transform = `translate(${c * U + S / 2}px, ${r * U + S / 2}px)`;
+    });
+  }
+  draw({ walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] });
+
+  // ---------- trạng thái
+  function setStatus(text, sub = "", mode = "") {
+    $("status-text").textContent = text;
+    $("status-sub").textContent = sub;
+    $("status").className = "status " + (mode === "run" ? "running" : "");
+    $("dot").style.background = mode === "run" ? "var(--a)" : mode === "err" ? "var(--bad)" : "var(--muted)";
+  }
+
+  async function getJSON(url, init) {
+    const res = await fetch(url, init);
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || ("Lỗi " + res.status));
+    return data;
+  }
+  async function source(id) {
+    if (!codeCache[id]) codeCache[id] = (await getJSON("/api/bots?id=" + encodeURIComponent(id))).code;
+    return codeCache[id];
+  }
+  const botName = id => (library.bots.find(b => b.id === id) || { name: id }).name;
+
+  // ---------- thư viện bot
+  async function loadLibrary(keep) {
+    try { library = await getJSON("/api/bots"); }
+    catch (e) { $("lib-note").textContent = "Không tải được danh sách bot: " + e.message; return; }
+    const sel = [$("bot0").value, $("bot1").value];
+    for (const [i, s] of [[0, $("bot0")], [1, $("bot1")]]) {
+      s.textContent = "";
+      const groups = [["Bot có sẵn", library.bots.filter(b => b.builtin)],
+                      ["Bot người dùng upload", library.bots.filter(b => !b.builtin)]];
+      for (const [label, list] of groups) {
+        if (!list.length) continue;
+        const og = document.createElement("optgroup"); og.label = label;
+        for (const b of list) {
+          const o = document.createElement("option");
+          o.value = b.id; o.textContent = b.name + (b.author ? " — " + b.author : "");
+          og.appendChild(o);
+        }
+        s.appendChild(og);
+      }
+      const fallback = i === 0 ? "builtin:MSSV" : "builtin:wall_builder";
+      s.value = keep && sel[i] && library.bots.some(b => b.id === sel[i]) ? sel[i] : fallback;
+    }
+    if (keep && keep.select !== undefined) $("bot" + keep.select).value = keep.id;
+
+    const lib = $("lib"); lib.textContent = "";
+    const users = library.bots.filter(b => !b.builtin);
+    for (const b of users) {
+      const li = document.createElement("li");
+      const info = document.createElement("div");
+      info.innerHTML = '<div class="n"></div><div class="m"></div>';
+      info.querySelector(".n").textContent = b.name;
+      const when = b.uploaded_at ? new Date(b.uploaded_at * 1000).toLocaleDateString("vi-VN") : "";
+      info.querySelector(".m").textContent = [b.author, b.description, b.size ? Math.ceil(b.size / 1024) + " KB" : "", when]
+        .filter(Boolean).join(" · ");
+      li.appendChild(info);
+      if (library.can_delete) {
+        const del = document.createElement("button"); del.textContent = "Xóa";
+        del.addEventListener("click", () => removeBot(b));
+        li.appendChild(del);
+      }
+      lib.appendChild(li);
+    }
+    $("lib-note").textContent = library.error ? "Lỗi kho lưu: " + library.error
+      : library.storage === null ? "Chưa bật kho lưu bot (Upstash Redis) trên server nên chưa upload được."
+      : users.length ? "" : "Chưa có bot nào được upload.";
+  }
+
+  async function removeBot(b) {
+    let password = "";
+    if (library.storage === "redis") {
+      password = prompt("Mật khẩu admin để xóa bot '" + b.name + "':");
+      if (password === null) return;
+    } else if (!confirm("Xóa bot '" + b.name + "'?")) return;
+    try {
+      await getJSON("/api/bots", { method: "POST", headers: { "Content-Type": "application/json" },
+                                   body: JSON.stringify({ op: "delete", id: b.id, password }) });
+      delete codeCache[b.id];
+      await loadLibrary(true);
+    } catch (e) { alert(e.message); }
+  }
+
+  $("upload").addEventListener("click", async () => {
+    const msg = $("up-msg"), file = $("up-file").files[0];
+    msg.className = "msg"; msg.textContent = "";
+    if (!file) { msg.className = "msg err"; msg.textContent = "Chọn file .py trước"; return; }
+    let name = $("up-name").value.trim() || file.name.replace(/\.py$/i, "");
+    $("upload").disabled = true;
+    try {
+      const code = await file.text();
+      const res = await getJSON("/api/bots", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "upload", name, author: $("up-author").value, description: $("up-desc").value, code }) });
+      msg.className = "msg ok"; msg.textContent = "Đã upload '" + name + "'. Đã chọn bot này làm bên đi sau.";
+      $("up-file").value = ""; $("up-name").value = "";
+      await loadLibrary({ select: 1, id: res.id });
+    } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+    $("upload").disabled = false;
+  });
+
+  // ---------- chạy trận
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  let cancelPending = null;
+  function ask(w, message, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      cancelPending = () => { clearTimeout(timer); reject(new Error("stopped")); };
+      w.onmessage = e => { clearTimeout(timer); resolve(e.data); };
+      w.onerror = e => { clearTimeout(timer); reject(new Error(e.message || "Worker lỗi")); };
+      w.postMessage(message);
+    });
+  }
+
+  function stopWorker() {
+    if (worker) { worker.terminate(); worker = null; }
+    if (cancelPending) { const c = cancelPending; cancelPending = null; c(); }
+  }
+
+  function showResult(ids, stats, winner, reason, turns, errors) {
+    $("result-card").hidden = false;
+    const banner = $("banner");
+    if (winner === null) { banner.className = "banner draw"; banner.textContent = "Hòa sau " + turns + " lượt" + (reason ? " (" + reason + ")" : ""); }
+    else {
+      banner.className = "banner " + (winner === 0 ? "a" : "b");
+      banner.textContent = botName(ids[winner]) + " (" + (winner === 0 ? "đi trước" : "đi sau") + ") thắng sau " + turns + " lượt" + (reason ? " · " + reason : "");
+    }
+    const tb = $("stats"); tb.textContent = "";
+    stats.forEach((s, p) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td></td><td>" + s.ok + "</td><td>" + s.timeout + "</td><td>" + s.invalid + "</td><td>" + s.error + "</td><td>" + s.max.toFixed(2) + "s</td>";
+      const td = tr.firstChild;
+      td.innerHTML = '<span class="chip" style="background:var(--' + (p ? "b" : "a") + ')"></span> ';
+      td.appendChild(document.createTextNode(botName(ids[p])));
+      tb.appendChild(tr);
+    });
+    const box = $("errbox");
+    box.hidden = !errors.length;
+    box.textContent = errors.slice(0, 3).join("\n\n");
+  }
+
+  async function startMatch() {
+    if (running) return;
+    const ids = [$("bot0").value, $("bot1").value];
+    running = true;
+    $("start").disabled = true; $("stop").disabled = false; $("result-card").hidden = true;
+    wallOwners = {};
+    draw({ walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] });
+    const stats = [0, 1].map(() => ({ ok: 0, pass: 0, invalid: 0, timeout: 0, error: 0, max: 0 }));
+    const errors = [];
+    try {
+      setStatus("Đang tải mã nguồn…", "", "run");
+      const [env, c0, c1] = await Promise.all([source("env"), source(ids[0]), source(ids[1])]);
+      stopWorker();
+      worker = new Worker("/match-worker.js");
+      setStatus("Đang khởi động Python (Pyodide)…", "lần đầu có thể mất 10–20 giây", "run");
+      const seed = Math.floor(Math.random() * 1e9);
+      if (!running) return;
+      const init = await ask(worker, { type: "init", env, codes: [c0, c1], maxTurns: 500, seed }, 120000);
+      if (init.type === "load-error") throw new Error("Không nạp được bot " + botName(ids[init.slot]) + ":\n" + init.message);
+      if (init.type !== "ready") throw new Error(init.message || "Khởi động thất bại");
+      let state = init.state;
+      draw(state);
+      while (running && !state.done) {
+        const p = state.current_player;
+        setStatus(botName(ids[p]) + " đang nghĩ…", "lượt " + (state.turn + 1) + " · seed " + seed, "run");
+        let reply;
+        try {
+          reply = await ask(worker, { type: "step", limit: opts.limit }, Math.max(15000, opts.limit * 5000));
+        } catch (e) {
+          if (!running) break;
+          stopWorker();
+          stats[p].timeout++;
+          showResult(ids, stats, 1 - p, botName(ids[p]) + " bị treo nên thua", state.turn, errors);
+          setStatus("Kết thúc: một bot bị treo", "", "err");
+          return;
+        }
+        if (reply.type !== "step") throw new Error(reply.message || "Lỗi khi chạy lượt");
+        const rec = reply.record;
+        stats[p][rec.status]++;
+        stats[p].max = Math.max(stats[p].max, rec.elapsed);
+        if (rec.error) errors.push(botName(ids[p]) + " (lượt " + rec.state.turn + "):\n" + rec.error);
+        let newest = null;
+        if (rec.action && rec.action.type === "wall") {
+          newest = rec.action.orientation + rec.action.row + "," + rec.action.col;
+          wallOwners[newest] = p;
+        }
+        state = rec.state;
+        draw(state, newest);
+        if (opts.speed) await sleep(opts.speed);
+        else if (state.turn % 10 === 0) await sleep(0);
+      }
+      if (running) {
+        const reason = state.winner === null ? "hết " + state.max_turns + " lượt" : "";
+        showResult(ids, stats, state.winner, reason, state.turn, errors);
+        setStatus("Trận đấu kết thúc", "seed " + seed);
+      } else setStatus("Đã dừng");
+    } catch (e) {
+      if (!running) { setStatus("Đã dừng"); return; }
+      setStatus("Lỗi", "", "err");
+      $("result-card").hidden = false;
+      $("banner").className = "banner draw"; $("banner").textContent = "Không chạy được trận";
+      $("stats").textContent = "";
+      $("errbox").hidden = false; $("errbox").textContent = e.message;
+    } finally {
+      stopWorker();
+      running = false;
+      $("start").disabled = false; $("stop").disabled = true;
+    }
+  }
+
+  // ---------- điều khiển
+  function seg(id, key) {
+    $(id).addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      $(id).querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+      opts[key] = Number(b.dataset.v);
+    });
+  }
+  seg("limit-seg", "limit");
+  seg("speed-seg", "speed");
+  $("swap").addEventListener("click", () => { const a = $("bot0").value; $("bot0").value = $("bot1").value; $("bot1").value = a; });
+  $("start").addEventListener("click", startMatch);
+  $("stop").addEventListener("click", () => { running = false; stopWorker(); });
+  $("theme").addEventListener("click", () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("wrongway-theme", root.dataset.theme); } catch (e) {}
+  });
+  try { const t = localStorage.getItem("wrongway-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+
+  loadLibrary();
+})();
+</script>
+</body>
+</html>

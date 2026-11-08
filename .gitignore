@@ -10,3 +10,4 @@ wrongway-student/wrongway/submissions/*_old.py
 .claude/settings.local.json
 .vscode/
 .idea/
+uploads/
