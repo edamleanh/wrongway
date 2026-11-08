@@ -80,6 +80,10 @@
   .pawn { transition: transform .28s cubic-bezier(.3,.7,.3,1); pointer-events: none; }
   .pawn circle.body { stroke: var(--panel); stroke-width: 3; }
   .pawn text { font-weight: 700; font-size: 15px; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+  .board-root { transform-origin: 264px 264px; transform-box: view-box; transition: transform .45s cubic-bezier(.3,.7,.3,1); }
+  .pawn text.label { transform-box: fill-box; transform-origin: center; transition: transform .45s cubic-bezier(.3,.7,.3,1); }
+  .rotate { margin-left: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+  .rotate span { color: var(--muted); font-weight: 500; margin-left: 4px; }
   .side { display: grid; gap: 16px; }
   .players { padding: 14px; display: grid; gap: 10px; }
   .player { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
@@ -131,7 +135,8 @@
 
   <div class="layout">
     <section class="card board-card">
-      <div class="status" id="status"><span class="dot"></span><span id="status-text">Đang tải…</span><span class="err" id="err"></span></div>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Đang tải…</span><span class="err" id="err"></span>
+        <button class="rotate" id="rotate" title="Xoay bàn cờ 90° (phím R). Quân của bạn vẫn là của bạn.">⟳ Xoay<span id="rotate-label"></span></button></div>
       <svg id="board" viewBox="0 0 528 528" aria-label="Bàn cờ 9x9"></svg>
       <div class="banner" id="banner"><span id="banner-text"></span><button class="btn primary" style="flex:none" id="again">Chơi lại</button></div>
     </section>
@@ -185,17 +190,35 @@
   // để quân trượt mượt và rê chuột không phải vẽ lại cả bàn.
   const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; };
-  const layerBoard = svg.appendChild(mk("g"));
-  const layerWalls = svg.appendChild(mk("g"));
-  const previewEl = svg.appendChild(mk("rect", { class: "preview", visibility: "hidden" }));
-  const layerPawns = svg.appendChild(mk("g"));
-  const layerZones = svg.appendChild(mk("g"));
+  // Mọi lớp nằm trong boardRoot; xoay bàn cờ = xoay boardRoot (chỉ đổi hướng nhìn,
+  // quân/màu/tường của bạn vẫn là của bạn, luật và tọa độ không đổi).
+  const boardRoot = svg.appendChild(mk("g", { class: "board-root" }));
+  const layerBoard = boardRoot.appendChild(mk("g"));
+  const layerWalls = boardRoot.appendChild(mk("g"));
+  const previewEl = boardRoot.appendChild(mk("rect", { class: "preview", visibility: "hidden" }));
+  const layerPawns = boardRoot.appendChild(mk("g"));
+  const layerZones = boardRoot.appendChild(mk("g"));
   const pawnEls = [0, 1].map(() => {
     const g = layerPawns.appendChild(mk("g", { class: "pawn" }));
     g.appendChild(mk("circle", { r: 17, class: "body" }));
-    g.appendChild(mk("text"));
+    g.appendChild(mk("text", { class: "label" }));
     return g;
   });
+  let rotation = 0;                                   // 0, 90, 180, 270 độ
+  try { rotation = Number(localStorage.getItem("wrongway-rotation")) % 360 || 0; } catch (e) {}
+  let turns = rotation / 90;                          // số lần xoay (tăng mãi để luôn xoay cùng chiều)
+  function applyRotation() {
+    const deg = turns * 90;
+    boardRoot.style.transform = `rotate(${deg}deg)`;
+    pawnEls.forEach(g => { g.querySelector("text").style.transform = `rotate(${-deg}deg)`; });
+    document.getElementById("rotate-label").textContent = rotation ? rotation + "°" : "";
+  }
+  function rotate() {
+    turns += 1;
+    rotation = (turns * 90) % 360;
+    try { localStorage.setItem("wrongway-rotation", String(rotation)); } catch (e) {}
+    applyRotation();
+  }
   svg.addEventListener("mouseleave", () => { hover = null; updatePreview(); });
   const choice = { human: 0, level: "hard" };
 
@@ -476,6 +499,12 @@
     try { localStorage.setItem("wrongway-theme", root.dataset.theme); } catch (e) {}
   });
   try { const t = localStorage.getItem("wrongway-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  document.getElementById("rotate").addEventListener("click", rotate);
+  document.addEventListener("keydown", e => {
+    if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) rotate();
+  });
+  applyRotation();
 
   newGame();
 })();
