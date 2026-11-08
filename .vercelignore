@@ -1,0 +1,7 @@
+logs/
+training/
+tests/
+tools/
+.claude/
+CLAUDE.md
+**/__pycache__/
