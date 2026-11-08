@@ -54,7 +54,11 @@
   .wall.new { animation: fade .3s ease-out; } @keyframes fade { from { opacity: 0; } }
   .pawn { transition: transform .22s cubic-bezier(.3,.7,.3,1); }
   .pawn circle { stroke: var(--panel); stroke-width: 3; }
-  .pawn text { font-weight: 700; font-size: 14px; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+  .pawn text { font-weight: 700; font-size: 14px; fill: #fff; text-anchor: middle; dominant-baseline: central;
+               transform-box: fill-box; transform-origin: center; transition: transform .45s cubic-bezier(.3,.7,.3,1); }
+  .board-root { transform-origin: 264px 264px; transform-box: view-box; transition: transform .45s cubic-bezier(.3,.7,.3,1); }
+  .rotate { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+  .rotate span { color: var(--muted); font-weight: 500; margin-left: 4px; }
   .vs { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
   .slot { display: grid; gap: 4px; }
   .slot label { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
@@ -103,7 +107,8 @@
 
   <div class="layout">
     <section class="card">
-      <div class="status" id="status"><span class="dot" id="dot"></span><span id="status-text">Chọn hai bot rồi bấm Bắt đầu</span><span class="sub" id="status-sub"></span></div>
+      <div class="status" id="status"><span class="dot" id="dot"></span><span id="status-text">Chọn hai bot rồi bấm Bắt đầu</span><span class="sub" id="status-sub"></span>
+        <button class="rotate" id="rotate" title="Xoay bàn cờ 90° (phím R)">⟳ Xoay<span id="rotate-label"></span></button></div>
       <svg id="board" viewBox="0 0 528 528" aria-label="Bàn cờ 9x9"></svg>
     </section>
 
@@ -179,7 +184,22 @@
   // ---------- bàn cờ (chỉ xem)
   const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
-  const layerBoard = mk("g", {}, svg), layerWalls = mk("g", {}, svg), layerPawns = mk("g", {}, svg);
+  // Xoay bàn cờ = xoay boardRoot (chỉ đổi hướng nhìn, không đổi luật/tọa độ/màu quân).
+  const boardRoot = mk("g", { class: "board-root" }, svg);
+  const layerBoard = mk("g", {}, boardRoot), layerWalls = mk("g", {}, boardRoot), layerPawns = mk("g", {}, boardRoot);
+  let turns = 0;
+  try { turns = (Number(localStorage.getItem("wrongway-arena-rotation")) % 360 || 0) / 90; } catch (e) {}
+  function applyRotation() {
+    const deg = turns * 90;
+    boardRoot.style.transform = `rotate(${deg}deg)`;
+    svg.querySelectorAll(".pawn text").forEach(t => { t.style.transform = `rotate(${-deg}deg)`; });
+    $("rotate-label").textContent = deg % 360 ? (deg % 360) + "°" : "";
+  }
+  function rotate() {
+    turns += 1;
+    try { localStorage.setItem("wrongway-arena-rotation", String((turns * 90) % 360)); } catch (e) {}
+    applyRotation();
+  }
   for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++)
     mk("rect", { x: c * U, y: r * U, width: S, height: S, rx: 7,
                  class: "cell" + (r === 0 ? " goal-a" : r === 8 ? " goal-b" : "") }, layerBoard);
@@ -430,6 +450,12 @@
   $("swap").addEventListener("click", () => { const a = $("bot0").value; $("bot0").value = $("bot1").value; $("bot1").value = a; });
   $("start").addEventListener("click", startMatch);
   $("stop").addEventListener("click", () => { running = false; stopWorker(); });
+  $("rotate").addEventListener("click", rotate);
+  document.addEventListener("keydown", e => {
+    if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) rotate();
+  });
+  applyRotation();
   $("theme").addEventListener("click", () => {
     const root = document.documentElement;
     const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
