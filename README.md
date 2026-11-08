@@ -47,6 +47,18 @@ Trình duyệt tự mở <http://localhost:8000>. Nếu không, bạn mở link 
 
 Tùy chọn khác: `--port 8080`, `--no-browser`, `--bot greedy` (đấu với một bot khác trong `submissions/`). Bấm `Ctrl+C` để dừng.
 
+### 1b. Deploy lên Vercel
+
+Repo đã cấu hình sẵn để deploy:
+
+1. Vào <https://vercel.com/new> và chọn **Import** repo này.
+2. Framework Preset: **Other**. Để trống Build Command và Output Directory.
+3. Bấm **Deploy**.
+
+Hoặc dùng Vercel CLI: `npm i -g vercel`, rồi chạy `vercel` (bản thử) hoặc `vercel --prod` (bản chính).
+
+Cách hoạt động: `public/index.html` là trang tĩnh. `api/move.py` là serverless function Python, dùng `api/_core.py` cùng Arena và bot. Server **không lưu trạng thái**: trình duyệt giữ ván cờ và gửi kèm mỗi request. Nhờ vậy nhiều người chơi cùng lúc được, mỗi người một ván riêng. Bản chạy cục bộ `tools/play_web.py` dùng chung đúng code này.
+
 ### 2. Cho hai bot đấu với nhau (Arena)
 
 ```bash
@@ -91,8 +103,11 @@ Mỗi thế hệ sinh vài bộ trọng số đột biến, cho chúng đấu v�
 │   └── submissions/
 │       ├── MSSV.py              # bot của mình
 │       └── greedy.py, random_agent.py, wall_builder.py, TEMPLATE.py
+├── public/index.html            # giao diện chơi với bot
+├── api/                         # serverless function cho Vercel (move.py, _core.py)
+├── vercel.json
 ├── tools/
-│   ├── play_web.py, web/        # chơi với bot trên trình duyệt
+│   ├── play_web.py              # chạy giao diện chơi cục bộ
 │   ├── tournament.py            # đấu vòng tròn kiểu mùa giải
 │   └── check_submission.py      # kiểm tra trước khi nộp
 ├── training/

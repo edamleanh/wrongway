@@ -215,11 +215,32 @@
     return "bỏ lượt";
   };
 
-  async function api(path, body) {
-    const res = await fetch(path, body === undefined ? {} : {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-    });
-    return res.json();
+  // Server không lưu gì: trình duyệt giữ trạng thái ván, nhật ký và lịch sử (để đi lại),
+  // gửi kèm trạng thái mỗi lần gọi /api/move.
+  const game = { state: null, view: null, human: 0, level: "hard", log: [], history: [],
+                 botInfo: null, botName: "MSSV" };
+
+  async function move(body) {
+    let res, data;
+    try {
+      res = await fetch("/api/move", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      data = await res.json();
+    } catch (e) {
+      throw new Error("Không kết nối được máy chủ");
+    }
+    if (!res.ok) throw new Error(data.error || "Lỗi máy chủ");
+    return data;
+  }
+
+  function merged() {
+    return {
+      ...game.state, ...game.view, human: game.human, level: game.level, log: game.log,
+      bot_info: game.botInfo, bot_name: game.botName, can_undo: game.history.length > 0,
+      wall_owners: game.log.filter(e => e.action && e.action.type === "wall")
+        .map(e => ({ o: e.action.orientation, r: e.action.row, c: e.action.col, owner: e.player })),
+    };
   }
 
   // ---------- vẽ
@@ -369,6 +390,7 @@
   function setStatus(error) {
     const st = document.getElementById("status"), txt = document.getElementById("status-text");
     const dot = st.querySelector(".dot");
+    if (!state) { txt.textContent = "Chưa có ván"; document.getElementById("err").textContent = error || ""; return; }
     const you = state.human;
     st.classList.toggle("thinking", busy);
     if (state.done) { txt.textContent = "Ván đấu kết thúc"; dot.style.background = "var(--muted)"; }
@@ -378,33 +400,51 @@
   }
 
   // ---------- điều khiển
-  function apply(s) {
-    prevPositions = state ? state.positions.map(p => p.slice()) : null;
-    state = s;
+  function apply(data, keepPrev = true) {
+    prevPositions = keepPrev && state ? state.positions.map(p => p.slice()) : null;
+    if (data) {
+      game.state = data.state; game.view = data.view;
+      if (data.bot_name) game.botName = data.bot_name;
+      if (data.event) {
+        game.log.push(data.event);
+        if (data.event.player !== game.human) game.botInfo = { time: data.event.time, depth: data.event.depth };
+      }
+    }
+    state = merged();
     render();
   }
+
+  function fail(err) { busy = false; render(); setStatus(err.message); }
 
   async function botTurn() {
     if (state.done || state.current_player === state.human) return;
     busy = true; render();
-    const s = await api("/api/bot", {});
-    busy = false; apply(s);
+    try {
+      const data = await move({ op: "bot", state: game.state, human: game.human, level: game.level });
+      busy = false; apply(data);
+    } catch (e) { fail(e); }
   }
 
   async function act(action) {
     if (busy || !state || state.done || state.current_player !== state.human) return;
     busy = true; render();
-    const s = await api("/api/action", { action });
-    busy = false;
-    if (s.error) { apply(s); setStatus(s.error); return; }
-    apply(s);
+    try {
+      const data = await move({ op: "action", state: game.state, human: game.human, action });
+      game.history.push({ state: game.state, view: game.view, log: game.log.slice(), botInfo: game.botInfo });
+      busy = false; apply(data);
+    } catch (e) { fail(e); return; }
     await botTurn();
   }
 
   async function newGame() {
     if (busy) return;
-    hover = null; prevPositions = null; lastWallKey = null;
-    apply(await api("/api/new", { human: choice.human, level: choice.level }));
+    hover = null; lastWallKey = null;
+    busy = true;
+    try {
+      const data = await move({ op: "new", human: choice.human });
+      Object.assign(game, { human: choice.human, level: choice.level, log: [], history: [], botInfo: null });
+      busy = false; state = null; apply(data, false);
+    } catch (e) { fail(e); return; }
     await botTurn();
   }
 
@@ -420,10 +460,12 @@
   seg("level-seg", "level");
   document.getElementById("new").addEventListener("click", newGame);
   document.getElementById("again").addEventListener("click", newGame);
-  document.getElementById("undo").addEventListener("click", async () => {
-    if (busy) return;
-    hover = null; prevPositions = null;
-    apply(await api("/api/undo", {}));
+  document.getElementById("undo").addEventListener("click", () => {
+    if (busy || !game.history.length) return;
+    hover = null;
+    const h = game.history.pop();
+    Object.assign(game, { state: h.state, view: h.view, log: h.log, botInfo: h.botInfo });
+    apply(null, false);
   });
   document.getElementById("theme").addEventListener("click", () => {
     const root = document.documentElement;
@@ -434,7 +476,7 @@
   });
   try { const t = localStorage.getItem("wrongway-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
-  api("/api/state").then(s => { apply(s); botTurn(); });
+  newGame();
 })();
 </script>
 </body>
