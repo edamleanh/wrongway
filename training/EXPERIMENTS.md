@@ -22,6 +22,7 @@
 
 | 15 | Đặc trưng `vuln` (độ dễ bị chặn: bức tường tốt nhất trên 4 bước đầu của đường đi làm người đó chậm thêm bao nhiêu), tính ở lá, có cache. Phân tích ván thua AI Hard cho thấy bot hay đi vào chỗ một bức tường làm đường dài thêm ~8 bước | Trọng số 0.4 / 0.8 / 1.2 / 1.6: **0.44 / 0.49 / 0.49 / 0.32 vs AI Hard** (80 ván, v2 cùng seed 0.28). Xét cả đường đi (thay vì 4 bước): 0.42. Nhưng `vuln` 1.0 chỉ 0.34 vs v1 (đi qua đi lại, hòa nhiều) | Dùng cùng #16 |
 | 16 | **Tường phòng thủ** ở gốc: tìm tối đa 3 bức tường đối thủ có thể đặt làm mình chậm ≥ 2 bước, xét thêm tường của mình chồng lấn/cắt ngang chỗ đó (không làm mình chậm đi). Lý do: bot `HuynhDuy_test2` (dựng hàng tường + cột tường để nhốt) thắng v2 **cả hai ván ở thế xuất phát chuẩn** dù v2 thắng nó 0.80 khi mở đầu ngẫu nhiên | Cùng `vuln` 1.0: **0.52 vs AI Hard (120 ván)**, **0.74 vs v2** (80 ván), 0.90 vs HuynhDuy (thắng cả 2 ván thế chuẩn), ~0.51 vs v1. Biến thể `vuln` 0.6: 0.465 vs Hard; thêm phạt đi qua đi lại: 0.435 vs Hard | **Dùng** → `MSSV.py` (v4) |
+| 17 | Tiến hóa lại v4 (12 thế hệ, độ sâu 4) với mục tiêu **trung bình 4 đối thủ** (AI Hard, HuynhDuy, v1, v2), nhận 4 bộ trọng số (`safe_race` 6.85→8.0, `wall_urgency` -0.08→-0.51, `opp_dist` -0.42→+0.12) | Đo bằng thời gian thật, seed 2026: **0.31 vs AI Hard** (80 ván; v4 cùng seed 0.50) nhưng 0.65 vs v4, 0.68 vs v1, 0.68 vs v2, 0.95 vs HuynhDuy → mạnh hơn trước bot alpha-beta, yếu hẳn trước AI Hard | Không thay `MSSV.py` (mục tiêu là AI Hard); giữ làm đối thủ `opponents/v5_evolved.py` |
 
 **Bài học:** bot tất định có thể bị một chuỗi nước cố định "bắt bài" ở thế xuất phát chuẩn mà đo bằng mở đầu ngẫu nhiên không thấy → luôn kiểm tra thêm cả hai ván thế chuẩn với từng đối thủ mới.
 
@@ -33,7 +34,7 @@ Ghi chú về luật: quá 1 giây cũng làm quân đứng yên, nhưng Arena g
 - Hiệu ứng chân trời: đôi khi đi qua đi lại để trì hoãn một bức tường nguy hiểm của đối thủ (thử nghiệm 7, 8 chưa sửa được mà không mất sức mạnh).
 - Tường phòng thủ chỉ xét ở gốc, chỉ chống bẫy một bức tường (bẫy cần nhiều tường có thể vẫn lọt).
 - `vuln` làm bot hơi rụt rè trước bot alpha-beta yếu (v1 chỉ ~0.5).
+- Trọng số tốt trước bot alpha-beta và tốt trước AI Hard đang kéo ngược nhau (thử nghiệm 17); điểm tiến hóa ở độ sâu 4 không phản ánh đúng sức mạnh khi chạy theo thời gian thật trước AI Hard.
 
 ## Ý tưởng chưa thử
-- Tiến hóa lại trọng số (có `vuln`) với mục tiêu trung bình nhiều đối thủ (AI Hard + v1 + v2).
 - Tiến hóa ở độ sâu 5 cho sát lúc nộp; tiến hóa đồng thời cả `WALL_CANDIDATES`.

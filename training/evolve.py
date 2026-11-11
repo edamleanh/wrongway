@@ -29,7 +29,7 @@ from common import BOT_FILE, CKPT_DIR, SUBMISSIONS, TRAIN_DIR, load_module, writ
 
 # Độ lớn đột biến riêng cho từng trọng số (nhân với sigma). Khóa mới -> mặc định 0.3.
 SCALES = {"race": 0.4, "walls": 0.3, "wall_urgency": 0.6, "safe_race": 1.0,
-          "my_dist": 0.15, "opp_dist": 0.15, "pass_penalty": 0.5}
+          "my_dist": 0.15, "opp_dist": 0.15, "pass_penalty": 0.5, "vuln": 0.3}
 OPPONENTS_DIR = TRAIN_DIR / "opponents"
 SAMPLE_BOTS = ["wall_builder"]
 
@@ -153,8 +153,10 @@ def main():
     history = CKPT_DIR / "evolve_history.jsonl"
     rng = random.Random(a.seed if a.seed is not None else time.time_ns())
     champion = dict(load_module(bot_file, "bot_init").WEIGHTS)
-    for k in SCALES:                              # đặc trưng mới chưa có trọng số -> 0
-        champion.setdefault(k, 0.0)
+    src = bot_file.read_text(encoding="utf-8")
+    for k in SCALES:                              # đặc trưng bot có dùng mà chưa có trọng số -> 0
+        if '"%s"' % k in src:
+            champion.setdefault(k, 0.0)
     hall = []                                     # các nhà vô địch cũ
     fixed = SAMPLE_BOTS + [str(p) for p in sorted(OPPONENTS_DIR.glob("*.py"))]
     targets = [str(Path(t).resolve()) for t in a.target]
