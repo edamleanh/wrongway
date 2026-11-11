@@ -72,7 +72,7 @@ class RulesMatchArena(unittest.TestCase):
                             for c in range(8):
                                 if not b.wall_fits(o, r, c, hw, vw):
                                     continue
-                                nb = blocked.union(b.wall_keys(o, r, c))
+                                nb = b.with_wall(blocked, o, r, c)
                                 if all(b.distance(b.cell(*env.positions[i]), env.goal_rows[i], nb) >= 0
                                        for i in (0, 1)):
                                     mine.add((o, r, c))
