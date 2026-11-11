@@ -6,3 +6,9 @@ tools/
 CLAUDE.md
 **/__pycache__/
 uploads/
+# Code AI của bên thứ ba: chỉ kiểm thử riêng trên máy, không bao giờ đưa lên web
+wrongway-student/wrongway/submissions/bot.py
+wrongway-student/wrongway/submissions/bot.js
+wrongway-student/wrongway/submissions/wwapp_src/
+wrongway-student/wrongway/submissions/wwbench/
+wrongway-student/wrongway/submissions/dev.py

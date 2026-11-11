@@ -1,4 +1,4 @@
-"""Thư viện bot: bot có sẵn + bot người dùng upload.
+"""Thư viện bot: bot có sẵn (mọi file .py hợp lệ trong submissions/) + bot người dùng upload.
 
 Server KHÔNG chạy code bot nào cả: chỉ lưu và trả mã nguồn. Trận đấu bot vs bot
 chạy trong trình duyệt (Pyodide/WebAssembly, xem public/match-worker.js).
@@ -23,14 +23,21 @@ import urllib.request
 from _core import ARENA_DIR, ROOT, BadRequest
 
 SUBMISSIONS = ARENA_DIR / "submissions"
-BUILTIN = [
-    ("MSSV", "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ"),
-    ("HuynhDuy_test2", "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ"),
-    ("bot", "Port từ bot.js (AI 'hard' game Quoridor): minimax 3 nửa-nước + tường dọc đường đối thủ"),
-    ("wall_builder", "Bot mẫu: đặt tường theo BFS"),
-    ("greedy", "Bot mẫu: đi theo đường ngắn nhất"),
-    ("random_agent", "Bot mẫu: ngẫu nhiên"),
-]
+# Bot có sẵn = MỌI file .py trong submissions/ có hàm choose_action (tự nhận, không cần đăng ký).
+# Muốn thêm bot: bỏ file <tên>.py vào submissions/ rồi push lên git. Mô tả lấy từ dòng đầu docstring.
+HIDDEN = {
+    "TEMPLATE",      # file mẫu của giảng viên
+    "dev",           # bản thử nghiệm đang sửa
+    "bot",           # bản port AI của wrongway.app: chỉ kiểm thử riêng, không được công khai
+}
+DESCRIPTIONS = {     # mô tả cho file không có docstring phù hợp (ưu tiên hơn docstring)
+    "MSSV": "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ",
+    "HuynhDuy_test2": "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ",
+    "wall_builder": "Bot mẫu: đặt tường theo BFS",
+    "greedy": "Bot mẫu: đi theo đường ngắn nhất",
+    "random_agent": "Bot mẫu: ngẫu nhiên",
+}
+FIRST, LAST = ["MSSV"], ["wall_builder", "greedy", "random_agent"]   # thứ tự hiển thị
 MAX_SIZE = 100 * 1024
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{2,32}$")
 KEY_META, KEY_CODE = "wrongway:bots:meta", "wrongway:bots:code"
@@ -135,11 +142,36 @@ def can_delete():
     return bool(os.environ.get("ADMIN_PASSWORD")) or not on_vercel()
 
 
+# ------------------------------------------------------------ bot có sẵn
+def _describe(name, tree):
+    if name in DESCRIPTIONS:
+        return DESCRIPTIONS[name]
+    doc = (ast.get_docstring(tree) or "").strip()
+    return doc.splitlines()[0][:120] if doc else "Bot trong submissions/" + name + ".py"
+
+
+def builtin_bots():
+    """{tên: mô tả} của các file .py hợp lệ trong submissions/ (chỉ đọc cú pháp, không chạy)."""
+    found = {}
+    for path in sorted(SUBMISSIONS.glob("*.py"), key=lambda p: p.stem.lower()):
+        name = path.stem
+        if name in HIDDEN or name.startswith("_") or not NAME_RE.match(name):
+            continue
+        try:
+            code = path.read_text(encoding="utf-8")
+            validate_code(code)
+        except (OSError, UnicodeDecodeError, BadRequest):
+            continue                      # file hỏng / không phải bot: bỏ qua
+        found[name] = _describe(name, ast.parse(code))
+    rank = lambda n: (0, FIRST.index(n)) if n in FIRST else (2, LAST.index(n)) if n in LAST else (1, n.lower())
+    return {n: found[n] for n in sorted(found, key=rank)}
+
+
 # ------------------------------------------------------------ API
 def list_bots():
     store = get_store()
     bots = [{"id": "builtin:" + n, "name": n, "description": d, "builtin": True}
-            for n, d in BUILTIN if (SUBMISSIONS / (n + ".py")).exists()]
+            for n, d in builtin_bots().items()]
     uploaded = []
     error = None
     if store is not None:
@@ -160,7 +192,7 @@ def get_source(bot_id):
     if bot_id == "env":
         return (ARENA_DIR / "environment.py").read_text(encoding="utf-8")
     kind, _, name = (bot_id or "").partition(":")
-    if kind == "builtin" and name in dict(BUILTIN):
+    if kind == "builtin" and name in builtin_bots():
         return (SUBMISSIONS / (name + ".py")).read_text(encoding="utf-8")
     if kind == "user" and NAME_RE.match(name):
         store = get_store()
@@ -191,7 +223,7 @@ def upload(body):
     name = str(body.get("name", "")).strip()
     if not NAME_RE.match(name):
         raise BadRequest("Tên bot 2-32 ký tự, chỉ gồm chữ không dấu, số, _ hoặc -")
-    if name in dict(BUILTIN):
+    if name in builtin_bots():
         raise BadRequest("Tên này trùng bot có sẵn")
     code = body.get("code")
     validate_code(code)
