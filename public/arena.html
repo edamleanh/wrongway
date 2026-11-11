@@ -93,6 +93,29 @@
   .lib button { border: 1px solid var(--line); background: transparent; color: var(--bad); border-radius: 7px; padding: 3px 8px; cursor: pointer; font: inherit; font-size: 12px; }
   .note { font-size: 12.5px; color: var(--muted); }
   .chip { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .main { display: grid; gap: 20px; min-width: 0; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--ink); }
+  .progress { height: 4px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: var(--ink); transition: width .3s; }
+  .score td:nth-child(5) { font-weight: 700; }
+  .hist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .hist-head h2 { margin: 0; }
+  .link { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 7px; padding: 3px 9px; cursor: pointer; font: inherit; font-size: 12px; }
+  .hist-wrap { max-height: 360px; overflow: auto; }
+  .hist td, .hist th { text-align: left; white-space: nowrap; }
+  .hist td.num, .hist th.num { text-align: right; }
+  .hist tr.series-start td { border-top: 2px solid var(--line); }
+  .hist tr.viewing td { background: var(--bg); }
+  .hist .who { display: inline-flex; align-items: center; gap: 5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  .hist .win { font-weight: 700; }
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--bg); color: var(--muted); }
+  .tag.a { background: var(--a-soft); color: var(--a); } .tag.b { background: var(--b-soft); color: var(--b); }
+  .replay { display: none; align-items: center; gap: 6px; margin: 12px 4px 0; flex-wrap: wrap; }
+  .replay.on { display: flex; }
+  .replay button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; height: 32px; min-width: 34px; cursor: pointer; font: inherit; font-size: 14px; }
+  .replay input[type=range] { flex: 1; min-width: 120px; accent-color: var(--ink); }
+  .replay .lbl { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
 </style>
 </head>
 <body>
@@ -106,11 +129,37 @@
   </header>
 
   <div class="layout">
+    <div class="main">
     <section class="card">
       <div class="status" id="status"><span class="dot" id="dot"></span><span id="status-text">Chọn hai bot rồi bấm Bắt đầu</span><span class="sub" id="status-sub"></span>
         <button class="rotate" id="rotate" title="Xoay bàn cờ 90° (phím R)">⟳ Xoay<span id="rotate-label"></span></button></div>
       <svg id="board" viewBox="0 0 528 528" aria-label="Bàn cờ 9x9"></svg>
+      <div class="replay" id="replay">
+        <button id="rp-first" title="Về đầu">⏮</button>
+        <button id="rp-prev" title="Lùi một nước (←)">◀</button>
+        <button id="rp-play" title="Phát / tạm dừng (Space)">▶</button>
+        <button id="rp-next" title="Tới một nước (→)">▶|</button>
+        <button id="rp-last" title="Về cuối">⏭</button>
+        <input type="range" id="rp-slider" min="0" max="0" value="0" aria-label="Nước đi">
+        <span class="lbl" id="rp-label"></span>
+        <button id="rp-close" title="Thoát xem lại">✕</button>
+      </div>
     </section>
+
+    <section class="card">
+      <div class="hist-head">
+        <h2>Lịch sử trận</h2>
+        <button class="link" id="hist-clear">Xóa lịch sử</button>
+      </div>
+      <div class="hist-wrap">
+        <table class="hist">
+          <thead><tr><th>Lúc</th><th>Loạt</th><th>Đi trước</th><th>Đi sau</th><th>Kết quả</th><th class="num">Lượt</th><th></th></tr></thead>
+          <tbody id="hist"></tbody>
+        </table>
+      </div>
+      <div class="note" id="hist-note">Lịch sử lưu trong trình duyệt này (tối đa 200 trận gần nhất). Bấm "Xem lại" để xem từng nước.</div>
+    </section>
+    </div>
 
     <aside class="side">
       <div class="card stack">
@@ -136,16 +185,26 @@
         <div class="seg" id="speed-seg">
           <button data-v="700">Chậm</button><button data-v="250" class="on">Vừa</button><button data-v="40">Nhanh</button><button data-v="0">Tức thì</button>
         </div>
+        <div class="field-label">Số trận</div>
+        <div class="seg" id="games-seg">
+          <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="6">6</button><button data-v="10">10</button><button data-v="20">20</button>
+        </div>
+        <label class="check"><input type="checkbox" id="alternate" checked> Đổi bên sau mỗi trận (như mùa giải)</label>
         <div class="row">
           <button class="btn primary" id="start">Bắt đầu</button>
           <button class="btn" id="stop" disabled>Dừng</button>
         </div>
+        <div class="progress" id="progress" hidden><div id="progress-bar"></div></div>
         <div class="note">Bot chạy ngay trong trình duyệt của bạn (Pyodide, chậm hơn Python thường khoảng 2–3 lần). Lần đầu cần tải khoảng 10 MB.</div>
       </div>
 
       <div class="card result" id="result-card" hidden>
         <h2>Kết quả</h2>
         <div class="banner" id="banner"></div>
+        <table class="score" id="score" hidden>
+          <thead><tr><th>Bot</th><th>Thắng</th><th>Hòa</th><th>Thua</th><th>Điểm</th></tr></thead>
+          <tbody id="score-body"></tbody>
+        </table>
         <table>
           <thead><tr><th>Bot</th><th>OK</th><th>Quá giờ</th><th>Sai</th><th>Lỗi</th><th>Chậm nhất</th></tr></thead>
           <tbody id="stats"></tbody>
@@ -178,7 +237,7 @@
   const S = 48, G = 12, U = S + G, NS = "http://www.w3.org/2000/svg";
   const $ = id => document.getElementById(id);
   const svg = $("board");
-  const opts = { limit: 2, speed: 250 };
+  const opts = { limit: 2, speed: 250, games: 1 };
   let library = { bots: [] }, worker = null, running = false, codeCache = {};
 
   // ---------- bàn cờ (chỉ xem)
@@ -326,6 +385,215 @@
     $("upload").disabled = false;
   });
 
+  const INITIAL = { walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] };
+  const emptyStats = () => ({ ok: 0, pass: 0, invalid: 0, timeout: 0, error: 0, max: 0 });
+
+  // ---------- lịch sử trận (chỉ lưu trong trình duyệt này)
+  const HIST_KEY = "wrongway-arena-history", HIST_MAX = 200;
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem(HIST_KEY) || "[]");
+    if (!Array.isArray(history)) history = [];
+  } catch (e) { history = []; }
+
+  function saveHistory() {
+    let list = history.slice(-HIST_MAX);
+    while (true) {
+      try { localStorage.setItem(HIST_KEY, JSON.stringify(list)); history = list; return; }
+      catch (e) {
+        if (!list.length) return;                       // trình duyệt chặn lưu trữ
+        // Hết chỗ: bỏ nước đi của trận cũ nhất trước (vẫn giữ kết quả), rồi mới bỏ hẳn trận.
+        const i = list.findIndex(h => h.moves);
+        if (i >= 0 && i < list.length - 1) list[i] = Object.assign({}, list[i], { moves: null });
+        else list = list.slice(1);
+      }
+    }
+  }
+
+  const two = n => String(n).padStart(2, "0");
+  function fmtTime(t) {
+    const d = new Date(t);
+    return two(d.getDate()) + "/" + two(d.getMonth() + 1) + " " + two(d.getHours()) + ":" + two(d.getMinutes());
+  }
+
+  let viewingId = null;
+  function renderHistory() {
+    const tb = $("hist"); tb.textContent = "";
+    const list = history.slice().reverse();               // mới nhất ở trên
+    list.forEach((h, i) => {
+      const tr = document.createElement("tr");
+      if (i > 0 && list[i - 1].series !== h.series) tr.classList.add("series-start");
+      if (h.id === viewingId) tr.classList.add("viewing");
+      const cell = (content, cls) => {
+        const td = document.createElement("td");
+        if (cls) td.className = cls;
+        if (content instanceof Node) td.appendChild(content); else td.textContent = content;
+        tr.appendChild(td);
+      };
+      cell(fmtTime(h.t));
+      cell(h.total > 1 ? h.idx + "/" + h.total : "–");
+      for (const p of [0, 1]) {
+        const s = document.createElement("span");
+        s.className = "who" + (h.winner === p ? " win" : "");
+        s.title = h.names[p];
+        s.innerHTML = '<span class="chip" style="background:var(--' + (p ? "b" : "a") + ')"></span>';
+        s.appendChild(document.createTextNode(h.names[p]));
+        cell(s);
+      }
+      const tag = document.createElement("span");
+      tag.className = "tag" + (h.winner === 0 ? " a" : h.winner === 1 ? " b" : "");
+      tag.textContent = h.winner === null ? "Hòa" : (h.winner === 0 ? "Đi trước" : "Đi sau") + " thắng";
+      if (h.reason) tag.title = h.reason;
+      cell(tag);
+      cell(String(h.turns), "num");
+      const btn = document.createElement("button");
+      btn.className = "link"; btn.textContent = "Xem lại";
+      btn.disabled = !h.moves || running;
+      if (!h.moves) btn.title = "Không còn dữ liệu nước đi (đã xóa bớt cho đủ chỗ lưu)";
+      btn.addEventListener("click", () => openReplay(h));
+      cell(btn);
+      tb.appendChild(tr);
+    });
+    $("hist-clear").disabled = !history.length || running;
+    $("hist-note").textContent = history.length
+      ? "Lưu trong trình duyệt này (tối đa " + HIST_MAX + " trận gần nhất). Bấm \"Xem lại\" để xem từng nước."
+      : "Chưa có trận nào. Kết quả mỗi trận sẽ được lưu ở đây (chỉ trong trình duyệt này).";
+  }
+
+  $("hist-clear").addEventListener("click", () => {
+    if (!history.length || !confirm("Xóa toàn bộ " + history.length + " trận trong lịch sử?")) return;
+    closeReplay();
+    history = [];
+    try { localStorage.removeItem(HIST_KEY); } catch (e) {}
+    renderHistory();
+  });
+
+  // ---------- xem lại một trận
+  // Nước đi lưu gọn: [người, "m", hàng, cột] | [người, "w", "H"/"V", hàng, cột] | [người, "s", lý do mất lượt]
+  let replay = null;
+
+  function buildFrames(moves) {
+    let pos = INITIAL.positions, H = [], V = [];
+    const owners = {};
+    const frames = [{ positions: pos, walls: { horizontal: H, vertical: V }, owners: {}, newest: null, move: null }];
+    for (const m of moves) {
+      let newest = null;
+      if (m[1] === "m") pos = pos.map((x, p) => (p === m[0] ? [m[2], m[3]] : x));
+      else if (m[1] === "w") {
+        newest = m[2] + m[3] + "," + m[4];
+        owners[newest] = m[0];
+        if (m[2] === "H") H = H.concat([[m[3], m[4]]]); else V = V.concat([[m[3], m[4]]]);
+      }
+      frames.push({ positions: pos, walls: { horizontal: H, vertical: V }, owners: Object.assign({}, owners), newest, move: m });
+    }
+    return frames;
+  }
+
+  function describe(h, m) {
+    if (!m) return "Thế xuất phát";
+    const who = h.names[m[0]];
+    if (m[1] === "m") return who + " đi tới (" + m[2] + ", " + m[3] + ")";
+    if (m[1] === "w") return who + " đặt tường " + (m[2] === "H" ? "ngang" : "dọc") + " (" + m[3] + ", " + m[4] + ")";
+    const why = { pass: "đứng yên", timeout: "quá giờ, mất lượt", invalid: "đi sai, mất lượt", error: "bị lỗi, mất lượt" };
+    return who + " " + (why[m[2]] || "mất lượt");
+  }
+
+  function showFrame(i) {
+    const n = replay.frames.length - 1;
+    replay.i = Math.max(0, Math.min(n, i));
+    const f = replay.frames[replay.i];
+    wallOwners = f.owners;
+    draw(f, f.newest);
+    $("rp-slider").value = replay.i;
+    $("rp-label").textContent = "Nước " + replay.i + "/" + n;
+    const h = replay.h;
+    let sub = describe(h, f.move);
+    if (replay.i === n) sub += " · " + (h.winner === null ? "Hòa" : h.names[h.winner] + " thắng");
+    setStatus("Xem lại: " + h.names[0] + " vs " + h.names[1], sub);
+    if (replay.i === n) pauseReplay();
+  }
+
+  function pauseReplay() {
+    if (replay && replay.timer) { clearInterval(replay.timer); replay.timer = null; }
+    $("rp-play").textContent = "▶";
+  }
+  function togglePlay() {
+    if (!replay) return;
+    if (replay.timer) { pauseReplay(); return; }
+    if (replay.i >= replay.frames.length - 1) showFrame(0);
+    $("rp-play").textContent = "⏸";
+    replay.timer = setInterval(() => showFrame(replay.i + 1), Math.max(80, opts.speed || 80));
+  }
+
+  function openReplay(h) {
+    if (running || !h.moves) return;
+    pauseReplay();
+    replay = { h, frames: buildFrames(h.moves), i: 0, timer: null };
+    viewingId = h.id;
+    $("rp-slider").max = replay.frames.length - 1;
+    $("replay").classList.add("on");
+    showFrame(0);
+    renderHistory();
+    $("board").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function closeReplay(silent) {
+    if (!replay) return;
+    pauseReplay();
+    replay = null; viewingId = null;
+    $("replay").classList.remove("on");
+    wallOwners = {};
+    draw(INITIAL);
+    if (!silent) { setStatus("Chọn hai bot rồi bấm Bắt đầu"); renderHistory(); }
+  }
+
+  $("rp-first").addEventListener("click", () => { pauseReplay(); showFrame(0); });
+  $("rp-prev").addEventListener("click", () => { pauseReplay(); showFrame(replay.i - 1); });
+  $("rp-next").addEventListener("click", () => { pauseReplay(); showFrame(replay.i + 1); });
+  $("rp-last").addEventListener("click", () => { pauseReplay(); showFrame(replay.frames.length - 1); });
+  $("rp-play").addEventListener("click", togglePlay);
+  $("rp-slider").addEventListener("input", e => { pauseReplay(); showFrame(Number(e.target.value)); });
+  $("rp-close").addEventListener("click", () => closeReplay());
+
+  // ---------- kết quả
+  function showResult(view) {
+    // view = {names: {A, B}, score, stats, total, played, last: {names, winner, turns, reason}, errors}
+    $("result-card").hidden = false;
+    const banner = $("banner"), { names, score, last } = view;
+    if (view.total === 1) {
+      if (last.winner === null) { banner.className = "banner draw"; banner.textContent = "Hòa sau " + last.turns + " lượt" + (last.reason ? " (" + last.reason + ")" : ""); }
+      else {
+        banner.className = "banner " + (last.winner === 0 ? "a" : "b");
+        banner.textContent = last.names[last.winner] + " (" + (last.winner === 0 ? "đi trước" : "đi sau") + ") thắng sau " + last.turns + " lượt" + (last.reason ? " · " + last.reason : "");
+      }
+    } else {
+      const pts = k => 3 * score[k].w + score[k].d;
+      const lead = pts("A") === pts("B") ? null : pts("A") > pts("B") ? "A" : "B";
+      banner.className = "banner " + (lead === "A" ? "a" : lead === "B" ? "b" : "draw");
+      banner.textContent = (view.played < view.total ? "Sau " + view.played + "/" + view.total + " trận: " : "Kết quả " + view.total + " trận: ")
+        + names.A + " " + pts("A") + " – " + pts("B") + " " + names.B
+        + (lead ? (view.played < view.total ? " · đang dẫn: " : " · thắng loạt: ") + names[lead] : " · ngang điểm");
+    }
+    $("score").hidden = view.total === 1;
+    const sb = $("score-body"); sb.textContent = "";
+    for (const k of ["A", "B"]) {
+      const s = score[k], tr = document.createElement("tr");
+      tr.innerHTML = "<td></td><td>" + s.w + "</td><td>" + s.d + "</td><td>" + s.l + "</td><td>" + (3 * s.w + s.d) + "</td>";
+      tr.firstChild.textContent = names[k];
+      sb.appendChild(tr);
+    }
+    const tb = $("stats"); tb.textContent = "";
+    for (const k of ["A", "B"]) {
+      const s = view.stats[k], tr = document.createElement("tr");
+      tr.innerHTML = "<td></td><td>" + s.ok + "</td><td>" + s.timeout + "</td><td>" + s.invalid + "</td><td>" + s.error + "</td><td>" + s.max.toFixed(2) + "s</td>";
+      tr.firstChild.textContent = names[k];
+      tb.appendChild(tr);
+    }
+    const box = $("errbox");
+    box.hidden = !view.errors.length;
+    box.textContent = view.errors.slice(0, 3).join("\n\n");
+  }
+
   // ---------- chạy trận
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -345,88 +613,107 @@
     if (cancelPending) { const c = cancelPending; cancelPending = null; c(); }
   }
 
-  function showResult(ids, stats, winner, reason, turns, errors) {
-    $("result-card").hidden = false;
-    const banner = $("banner");
-    if (winner === null) { banner.className = "banner draw"; banner.textContent = "Hòa sau " + turns + " lượt" + (reason ? " (" + reason + ")" : ""); }
-    else {
-      banner.className = "banner " + (winner === 0 ? "a" : "b");
-      banner.textContent = botName(ids[winner]) + " (" + (winner === 0 ? "đi trước" : "đi sau") + ") thắng sau " + turns + " lượt" + (reason ? " · " + reason : "");
+  // Một trận. keys[p] = "A"/"B": bot nào đang cầm quân p (để cộng thống kê đúng bot khi đổi bên).
+  // Trả về {winner, turns, reason, moves} hoặc null nếu bị dừng.
+  async function playGame(ids, codes, env, seed, label, keys, stats, errors) {
+    wallOwners = {};
+    draw(INITIAL);
+    if (!worker) {
+      worker = new Worker("/match-worker.js");
+      setStatus(label + "Đang khởi động Python (Pyodide)…", "lần đầu có thể mất 10–20 giây", "run");
     }
-    const tb = $("stats"); tb.textContent = "";
-    stats.forEach((s, p) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = "<td></td><td>" + s.ok + "</td><td>" + s.timeout + "</td><td>" + s.invalid + "</td><td>" + s.error + "</td><td>" + s.max.toFixed(2) + "s</td>";
-      const td = tr.firstChild;
-      td.innerHTML = '<span class="chip" style="background:var(--' + (p ? "b" : "a") + ')"></span> ';
-      td.appendChild(document.createTextNode(botName(ids[p])));
-      tb.appendChild(tr);
-    });
-    const box = $("errbox");
-    box.hidden = !errors.length;
-    box.textContent = errors.slice(0, 3).join("\n\n");
+    const init = await ask(worker, { type: "init", env, codes, maxTurns: 500, seed }, 120000);
+    if (init.type === "load-error") throw new Error("Không nạp được bot " + botName(ids[init.slot]) + ":\n" + init.message);
+    if (init.type !== "ready") throw new Error(init.message || "Khởi động thất bại");
+    let state = init.state;
+    const moves = [];
+    draw(state);
+    while (running && !state.done) {
+      const p = state.current_player, st = stats[keys[p]];
+      setStatus(label + botName(ids[p]) + " đang nghĩ…", "lượt " + (state.turn + 1) + " · seed " + seed, "run");
+      let reply;
+      try {
+        reply = await ask(worker, { type: "step", limit: opts.limit }, Math.max(15000, opts.limit * 5000));
+      } catch (e) {
+        if (!running) return null;
+        stopWorker();                                  // bot treo: trận sau tạo worker mới
+        st.timeout++;
+        moves.push([p, "s", "timeout"]);
+        return { winner: 1 - p, turns: state.turn + 1, reason: botName(ids[p]) + " bị treo nên thua", moves };
+      }
+      if (reply.type !== "step") throw new Error(reply.message || "Lỗi khi chạy lượt");
+      const rec = reply.record;
+      st[rec.status] = (st[rec.status] || 0) + 1;
+      st.max = Math.max(st.max, rec.elapsed);
+      if (rec.error) errors.push(botName(ids[p]) + " (lượt " + rec.state.turn + "):\n" + rec.error);
+      let newest = null;
+      const a = rec.status === "ok" ? rec.action : null;
+      if (a && a.type === "wall") {
+        newest = a.orientation + a.row + "," + a.col;
+        wallOwners[newest] = p;
+        moves.push([p, "w", a.orientation, a.row, a.col]);
+      } else if (a && a.type === "move") moves.push([p, "m", a.to[0], a.to[1]]);
+      else moves.push([p, "s", rec.status === "pass" ? "pass" : rec.status]);
+      state = rec.state;
+      draw(state, newest);
+      if (opts.speed) await sleep(opts.speed);
+      else if (state.turn % 10 === 0) await sleep(0);
+    }
+    if (!running) return null;
+    return { winner: state.winner, turns: state.turn,
+             reason: state.winner === null ? "hết " + state.max_turns + " lượt" : "", moves };
   }
 
   async function startMatch() {
     if (running) return;
-    const ids = [$("bot0").value, $("bot1").value];
+    closeReplay(true);
+    const pick = [$("bot0").value, $("bot1").value];
+    const total = opts.games, alternate = $("alternate").checked;
+    const names = { A: botName(pick[0]), B: botName(pick[1]) };
+    if (pick[0] === pick[1]) { names.A += " #1"; names.B += " #2"; }
+    const score = { A: { w: 0, d: 0, l: 0 }, B: { w: 0, d: 0, l: 0 } };
+    const stats = { A: emptyStats(), B: emptyStats() }, errors = [];
+    const seriesId = Date.now().toString(36);
     running = true;
     $("start").disabled = true; $("stop").disabled = false; $("result-card").hidden = true;
-    wallOwners = {};
-    draw({ walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] });
-    const stats = [0, 1].map(() => ({ ok: 0, pass: 0, invalid: 0, timeout: 0, error: 0, max: 0 }));
-    const errors = [];
+    $("progress").hidden = total < 2; $("progress-bar").style.width = "0";
+    renderHistory();
+    let played = 0;
     try {
       setStatus("Đang tải mã nguồn…", "", "run");
-      const [env, c0, c1] = await Promise.all([source("env"), source(ids[0]), source(ids[1])]);
+      const [env, codeA, codeB] = await Promise.all([source("env"), source(pick[0]), source(pick[1])]);
       stopWorker();
-      worker = new Worker("/match-worker.js");
-      setStatus("Đang khởi động Python (Pyodide)…", "lần đầu có thể mất 10–20 giây", "run");
-      const seed = Math.floor(Math.random() * 1e9);
-      if (!running) return;
-      const init = await ask(worker, { type: "init", env, codes: [c0, c1], maxTurns: 500, seed }, 120000);
-      if (init.type === "load-error") throw new Error("Không nạp được bot " + botName(ids[init.slot]) + ":\n" + init.message);
-      if (init.type !== "ready") throw new Error(init.message || "Khởi động thất bại");
-      let state = init.state;
-      draw(state);
-      while (running && !state.done) {
-        const p = state.current_player;
-        setStatus(botName(ids[p]) + " đang nghĩ…", "lượt " + (state.turn + 1) + " · seed " + seed, "run");
-        let reply;
-        try {
-          reply = await ask(worker, { type: "step", limit: opts.limit }, Math.max(15000, opts.limit * 5000));
-        } catch (e) {
-          if (!running) break;
-          stopWorker();
-          stats[p].timeout++;
-          showResult(ids, stats, 1 - p, botName(ids[p]) + " bị treo nên thua", state.turn, errors);
-          setStatus("Kết thúc: một bot bị treo", "", "err");
-          return;
-        }
-        if (reply.type !== "step") throw new Error(reply.message || "Lỗi khi chạy lượt");
-        const rec = reply.record;
-        stats[p][rec.status]++;
-        stats[p].max = Math.max(stats[p].max, rec.elapsed);
-        if (rec.error) errors.push(botName(ids[p]) + " (lượt " + rec.state.turn + "):\n" + rec.error);
-        let newest = null;
-        if (rec.action && rec.action.type === "wall") {
-          newest = rec.action.orientation + rec.action.row + "," + rec.action.col;
-          wallOwners[newest] = p;
-        }
-        state = rec.state;
-        draw(state, newest);
-        if (opts.speed) await sleep(opts.speed);
-        else if (state.turn % 10 === 0) await sleep(0);
+      let seed = 0;
+      for (let g = 0; g < total && running; g++) {
+        // Đổi bên: trận lẻ A đi trước, trận chẵn B đi trước; mỗi cặp trận dùng chung seed (công bằng).
+        const keys = alternate && g % 2 === 1 ? ["B", "A"] : ["A", "B"];
+        const ids = keys.map(k => (k === "A" ? pick[0] : pick[1]));
+        const codes = keys.map(k => (k === "A" ? codeA : codeB));
+        if (!alternate || g % 2 === 0) seed = Math.floor(Math.random() * 1e9);
+        const label = total > 1 ? "Trận " + (g + 1) + "/" + total + " · " : "";
+        const res = await playGame(ids, codes, env, seed, label, keys, stats, errors);
+        if (!res) break;
+        played++;
+        if (res.winner === null) { score.A.d++; score.B.d++; }
+        else { score[keys[res.winner]].w++; score[keys[1 - res.winner]].l++; }
+        const gameNames = keys.map(k => names[k]);
+        history.push({ id: seriesId + "-" + g, series: seriesId, idx: g + 1, total, t: Date.now(),
+                       ids, names: gameNames, winner: res.winner, turns: res.turns, reason: res.reason,
+                       seed, limit: opts.limit, moves: res.moves });
+        saveHistory();
+        renderHistory();
+        showResult({ names, score, stats, total, played, errors,
+                     last: { names: gameNames, winner: res.winner, turns: res.turns, reason: res.reason } });
+        $("progress-bar").style.width = (100 * played / total) + "%";
+        if (g < total - 1 && running && opts.speed) await sleep(Math.min(1500, opts.speed * 4));
       }
-      if (running) {
-        const reason = state.winner === null ? "hết " + state.max_turns + " lượt" : "";
-        showResult(ids, stats, state.winner, reason, state.turn, errors);
-        setStatus("Trận đấu kết thúc", "seed " + seed);
-      } else setStatus("Đã dừng");
+      if (running) setStatus(total > 1 ? "Xong loạt " + total + " trận" : "Trận đấu kết thúc", total > 1 ? "xem bảng điểm và lịch sử" : "");
+      else setStatus("Đã dừng", played ? "đã lưu " + played + " trận vào lịch sử" : "");
     } catch (e) {
       if (!running) { setStatus("Đã dừng"); return; }
       setStatus("Lỗi", "", "err");
       $("result-card").hidden = false;
+      $("score").hidden = true;
       $("banner").className = "banner draw"; $("banner").textContent = "Không chạy được trận";
       $("stats").textContent = "";
       $("errbox").hidden = false; $("errbox").textContent = e.message;
@@ -434,6 +721,7 @@
       stopWorker();
       running = false;
       $("start").disabled = false; $("stop").disabled = true;
+      renderHistory();
     }
   }
 
@@ -447,13 +735,18 @@
   }
   seg("limit-seg", "limit");
   seg("speed-seg", "speed");
+  seg("games-seg", "games");
   $("swap").addEventListener("click", () => { const a = $("bot0").value; $("bot0").value = $("bot1").value; $("bot1").value = a; });
   $("start").addEventListener("click", startMatch);
   $("stop").addEventListener("click", () => { running = false; stopWorker(); });
   $("rotate").addEventListener("click", rotate);
   document.addEventListener("keydown", e => {
-    if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey &&
-        !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) rotate();
+    if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === "r" || e.key === "R") rotate();
+    else if (replay && e.key === "ArrowLeft") { e.preventDefault(); pauseReplay(); showFrame(replay.i - 1); }
+    else if (replay && e.key === "ArrowRight") { e.preventDefault(); pauseReplay(); showFrame(replay.i + 1); }
+    else if (replay && e.key === " ") { e.preventDefault(); togglePlay(); }
+    else if (replay && e.key === "Escape") closeReplay();
   });
   applyRotation();
   $("theme").addEventListener("click", () => {
@@ -465,6 +758,7 @@
   try { const t = localStorage.getItem("wrongway-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   loadLibrary();
+  renderHistory();
 })();
 </script>
 </body>

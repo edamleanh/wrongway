@@ -53,6 +53,8 @@ Mở <http://localhost:8000/arena.html> (hoặc bấm **"Đấu bot vs bot →"*
 
 - **Chọn trận:** chọn bot **đi trước** (xuất phát ở dưới) và bot **đi sau** (xuất phát ở trên). Nút ⇅ đổi bên. Chọn thêm giới hạn thời gian mỗi nước (1, 2 hoặc 5 giây) và tốc độ xem, rồi bấm **Bắt đầu**.
 - **Upload bot:** đặt tên (chữ không dấu, số, `_` hoặc `-`), chọn file `.py` có hàm `choose_action(observation)` giống bài nộp Arena (tối đa 100 KB), rồi bấm **Upload**. Bot mới xuất hiện trong danh sách cho mọi người.
+- **Đấu nhiều trận:** chọn **Số trận** (1, 2, 6, 10, 20). Bật **Đổi bên sau mỗi trận** để hai bot lần lượt đi trước/đi sau (mỗi cặp trận dùng chung seed), giống mùa giải. Bảng điểm tính thắng 3, hòa 1, thua 0.
+- **Lịch sử trận:** mỗi trận được lưu trong trình duyệt (tối đa 200 trận gần nhất). Bấm **Xem lại** để tua từng nước (nút ⏮ ◀ ▶ ⏭, thanh kéo, hoặc phím ← → và Space; Esc để thoát).
 - **Kết quả:** người thắng, số lượt, và thống kê từng bot (số nước hợp lệ, quá giờ, nước sai, lỗi, lần nghĩ lâu nhất). Nếu bot bị lỗi, traceback được hiện ra để sửa.
 
 **Bot chạy ngay trong trình duyệt** bằng [Pyodide](https://pyodide.org) (Python trên WebAssembly), trong một Web Worker. Server chỉ lưu và trả mã nguồn, **không bao giờ chạy code người khác upload**. Luật lấy từ chính `environment.py` của Arena; bot lỗi, quá giờ hoặc trả nước sai thì mất lượt, giống Arena. Bot bị treo quá lâu sẽ bị ngắt và xử thua. Lần đầu mở trang cần tải khoảng 10 MB, và Python trên WebAssembly chậm hơn khoảng 2–3 lần, nên giới hạn mặc định là 2 giây mỗi nước.
