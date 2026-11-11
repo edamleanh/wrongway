@@ -11,3 +11,6 @@ wrongway-student/wrongway/submissions/*_old.py
 .vscode/
 .idea/
 uploads/
+
+# Bản port AI của bên thứ ba (chỉ để thử nghiệm riêng, không công khai)
+wrongway-student/wrongway/submissions/bot.py
