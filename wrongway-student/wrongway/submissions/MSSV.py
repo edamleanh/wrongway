@@ -5,9 +5,12 @@
 Cách hoạt động:
 1. Tự mô phỏng luật chơi (đi, nhảy, đi chéo, tường hợp lệ) để nhìn trước.
    Ô cờ được đánh số 0..80 (= hàng*9 + cột); cạnh bị tường chặn lưu trong
-   một frozenset số nguyên -> BFS nhanh, tìm kiếm được sâu hơn.
+   một frozenset số nguyên. BFS tính khoảng cách dùng BITBOARD (như Stockfish):
+   cả bàn là một số nguyên 81 bit, mỗi bước loang ra mọi ô cùng lúc bằng phép
+   dịch bit -> nhanh gấp ~2 lần duyệt từng ô, nên nhìn sâu hơn trong cùng thời gian.
 2. Tìm kiếm negamax alpha-beta, đào sâu dần (1, 2, 3... nước) tới khi hết giờ,
    có bảng chuyển vị (transposition table) để không tính lại thế cờ trùng.
+   Hết giờ giữa một độ sâu: vẫn dùng nước đã được chứng minh tốt hơn nước cũ.
    Ứng viên mỗi nút: mọi nước đi + tối đa WALL_CANDIDATES tường chắn trên
    đường ngắn nhất của đối thủ (xếp theo lợi ích). Ở gốc thêm "tường phòng thủ":
    chiếm chỗ các bức tường nguy hiểm nhất mà đối thủ có thể đặt để nhốt mình.
@@ -22,6 +25,7 @@ import < 5 s, RAM <= 128 MB.
 """
 
 import time
+from itertools import chain
 
 # ---------------------------------------------------------------- 1. Cấu hình
 SIZE = 9
@@ -62,6 +66,8 @@ for _i in range(N):
     STEP.append([(_r + dr) * SIZE + _c + dc if 0 <= _r + dr < SIZE and 0 <= _c + dc < SIZE else -1
                  for dr, dc in DIRS])
 NEI = [[b for b in STEP[i] if b >= 0] for i in range(N)]
+# NEIK[a] = [(ô kề b, khóa cạnh a->b)]: tính sẵn để BFS khỏi phải nhân/cộng mỗi lần.
+NEIK = [[(b, a * N + b) for b in NEI[a]] for a in range(N)]
 # Hai hướng vuông góc với mỗi hướng (dùng cho đi chéo quanh đối thủ).
 SIDE = {0: (1, 2), 3: (1, 2), 1: (0, 3), 2: (0, 3)}
 
@@ -79,37 +85,74 @@ def wall_keys(o, r, c):
     return [k for a, b in pairs for k in (a * N + b, b * N + a)]
 
 
+# Bitboard (giống Stockfish): cả bàn cờ là một số nguyên 81 bit, bit thứ i = ô i.
+# Một bước BFS cho MỌI ô cùng lúc = vài phép dịch bit, thay vì duyệt từng ô.
+#   dịch >> 9 = lên một hàng, << 9 = xuống một hàng, >> 1 = sang trái, << 1 = sang phải.
+ROW_BITS = [sum(1 << (r * SIZE + c) for c in range(SIZE)) for r in range(SIZE)]
+# 4 bitboard "đi được" khi chưa có tường: bit i bật nếu từ ô i đi hướng đó không ra ngoài bàn.
+OPEN0 = (sum(1 << i for i in range(N) if ROW[i] > 0),          # lên
+         sum(1 << i for i in range(N) if ROW[i] < SIZE - 1),   # xuống
+         sum(1 << i for i in range(N) if COL[i] > 0),          # trái
+         sum(1 << i for i in range(N) if COL[i] < SIZE - 1))   # phải
+
+
+class Blocked(frozenset):
+    """Tập khóa cạnh bị chặn (như frozenset: dùng làm khóa bảng chuyển vị, kiểm tra `in`)
+    kèm 4 bitboard up/down/left/right: bit i bật nếu từ ô i đi hướng đó được."""
+    __slots__ = ("up", "down", "left", "right")
+
+
+def wall_masks(blocked, o, r, c):
+    """4 bitboard 'đi được' sau khi thêm tường (o, r, c) vào blocked."""
+    a = r * SIZE + c
+    if o == "H":     # chặn đi xuống từ (r,c),(r,c+1) và đi lên từ hai ô ngay dưới
+        bits = (1 << a) | (1 << (a + 1))
+        return blocked.up & ~(bits << SIZE), blocked.down & ~bits, blocked.left, blocked.right
+    bits = (1 << a) | (1 << (a + SIZE))   # V: chặn sang phải từ (r,c),(r+1,c), sang trái từ hai ô bên phải
+    return blocked.up, blocked.down, blocked.left & ~(bits << 1), blocked.right & ~bits
+
+
+def with_wall(blocked, o, r, c, masks=None):
+    """Blocked mới = blocked + tường (o, r, c)."""
+    nb = Blocked(chain(blocked, wall_keys(o, r, c)))
+    nb.up, nb.down, nb.left, nb.right = masks or wall_masks(blocked, o, r, c)
+    return nb
+
+
 def blocked_from(hw, vw):
-    keys = []
+    nb = Blocked()
+    nb.up, nb.down, nb.left, nb.right = OPEN0
     for r, c in hw:
-        keys.extend(wall_keys("H", r, c))
+        nb = with_wall(nb, "H", r, c)
     for r, c in vw:
-        keys.extend(wall_keys("V", r, c))
-    return frozenset(keys)
+        nb = with_wall(nb, "V", r, c)
+    return nb
 
 
 # ------------------------------------------------------- 3. Luật chơi
-def distance(start, goal_row, blocked):
-    """BFS theo tầng: số bước ít nhất tới goal_row, bỏ qua quân. -1 nếu bị bít."""
-    if ROW[start] == goal_row:
+def bfs_dist(start, goal_row, up, down, left, right):
+    """BFS bằng bitboard: số bước ít nhất từ start tới goal_row (bỏ qua quân), -1 nếu bị bít.
+    frontier = tập ô vừa tới ở bước trước; mỗi vòng mở rộng cả tập theo 4 hướng."""
+    reach = frontier = 1 << start
+    goal = ROW_BITS[goal_row]
+    if reach & goal:
         return 0
-    seen = bytearray(N)
-    seen[start] = 1
-    frontier = [start]
     d = 0
-    while frontier:
+    while True:
+        nxt = (((frontier & up) >> SIZE) | ((frontier & down) << SIZE)
+               | ((frontier & left) >> 1) | ((frontier & right) << 1)) & ~reach
+        if not nxt:
+            return -1
         d += 1
-        nxt = []
-        for a in frontier:
-            base = a * N
-            for b in NEI[a]:
-                if not seen[b] and base + b not in blocked:
-                    if ROW[b] == goal_row:
-                        return d
-                    seen[b] = 1
-                    nxt.append(b)
+        if nxt & goal:
+            return d
+        reach |= nxt
         frontier = nxt
-    return -1
+
+
+def distance(start, goal_row, blocked):
+    """Số bước ít nhất tới goal_row với tập tường blocked (kiểu Blocked)."""
+    return bfs_dist(start, goal_row, blocked.up, blocked.down, blocked.left, blocked.right)
 
 
 def distance_map(goal_row, blocked):
@@ -144,9 +187,8 @@ def shortest_path(start, goal_row, blocked):
                     path.append(a)
                     a = parent[a]
                 return path[::-1]
-            base = a * N
-            for b in NEI[a]:
-                if b not in parent and base + b not in blocked:
+            for b, k in NEIK[a]:
+                if b not in parent and k not in blocked:
                     parent[b] = a
                     nxt.append(b)
         frontier = nxt
@@ -209,10 +251,13 @@ def vulnerability(start, goal_row, blocked, d0):
     for o, r, c in walls_on_path(path):
         if not (0 <= r < SIZE - 1 and 0 <= c < SIZE - 1):
             continue
-        keys = wall_keys(o, r, c)
-        if any(k in blocked for k in keys):
-            continue                      # trùng cạnh đã chặn (gần đúng cho wall_fits)
-        d = distance(start, goal_row, blocked.union(keys))
+        a = r * SIZE + c                  # trùng cạnh đã chặn (gần đúng cho wall_fits):
+        if o == "H":                      # bit "đi xuống" của 2 ô phía trên tường đã tắt
+            if (blocked.down >> a) & 3 != 3:
+                continue
+        elif (blocked.right >> a) & 1 == 0 or (blocked.right >> (a + SIZE)) & 1 == 0:
+            continue
+        d = bfs_dist(start, goal_row, *wall_masks(blocked, o, r, c))
         if d - d0 > worst:
             worst = d - d0
     return worst
@@ -229,9 +274,9 @@ def defensive_walls(me, pos, hw, vw, blocked, wl, dist, goals):
     for o, r, c in walls_on_path(shortest_path(pos[me], goals[me], blocked)):
         if not wall_fits(o, r, c, hw, vw):
             continue
-        nb = blocked.union(wall_keys(o, r, c))
-        d = distance(pos[me], goals[me], nb)
-        if d - dist[me] >= 2 and distance(pos[q], goals[q], nb) >= 0:
+        m2 = wall_masks(blocked, o, r, c)
+        d = bfs_dist(pos[me], goals[me], *m2)
+        if d - dist[me] >= 2 and bfs_dist(pos[q], goals[q], *m2) >= 0:
             threats.append((d - dist[me], o, r, c))
     threats.sort(reverse=True)
     out, seen = [], set()
@@ -244,7 +289,7 @@ def defensive_walls(me, pos, hw, vw, blocked, wl, dist, goals):
             if b in seen or not wall_fits(b[0], b[1], b[2], hw, vw):
                 continue
             seen.add(b)
-            nb = blocked.union(wall_keys(*b))
+            nb = with_wall(blocked, *b)
             dp2, dq2 = distance(pos[me], goals[me], nb), distance(pos[q], goals[q], nb)
             if dp2 < 0 or dq2 < 0 or dp2 > dist[me]:
                 continue                   # không bít đường, không tự làm chậm mình
@@ -327,13 +372,14 @@ class Search:
             for o, r, c in walls_on_path(shortest_path(pos[q], goal_q, blocked)):
                 if not wall_fits(o, r, c, hw, vw):
                     continue
-                nb = blocked.union(wall_keys(o, r, c))
-                dq2 = distance(pos[q], goal_q, nb)
+                m2 = wall_masks(blocked, o, r, c)
+                dq2 = bfs_dist(pos[q], goal_q, *m2)
                 if dq2 <= dist[q]:          # không làm chậm đối thủ (hoặc bít đường: -1)
                     continue
-                dp2 = distance(pos[p], goal, nb)
+                dp2 = bfs_dist(pos[p], goal, *m2)
                 if dp2 < 0:
                     continue
+                nb = with_wall(blocked, o, r, c, m2)
                 nh = hw | {(r, c)} if o == "H" else hw
                 nv = vw | {(r, c)} if o == "V" else vw
                 nd = list(dist)
@@ -442,6 +488,11 @@ def choose_action(observation):
                         if v > alpha:
                             alpha, cur_best = v, kid
                 except Timeout:
+                    # Hết giờ giữa chừng: kids[0] là nước tốt nhất của độ sâu trước và được xét
+                    # trước tiên. Nếu đã có nước khác vượt qua nó ở độ sâu mới này thì nước đó
+                    # tốt hơn thật (đã được chứng minh) -> dùng luôn, không bỏ phí (như Stockfish).
+                    if cur_best is not None and cur_best is not kids[0]:
+                        best = cur_best
                     break
                 best, depth_done = cur_best, depth
                 kids.remove(best)
