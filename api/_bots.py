@@ -24,7 +24,8 @@ from _core import ARENA_DIR, ROOT, BadRequest
 
 SUBMISSIONS = ARENA_DIR / "submissions"
 BUILTIN = [
-    ("MSSV", "Bot của mình: alpha-beta + trọng số học bằng tiến hóa"),
+    ("MSSV", "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ"),
+    ("HuynhDuy_test2", "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ"),
     ("wall_builder", "Bot mẫu: đặt tường theo BFS"),
     ("greedy", "Bot mẫu: đi theo đường ngắn nhất"),
     ("random_agent", "Bot mẫu: ngẫu nhiên"),
