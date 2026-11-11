@@ -11,6 +11,7 @@ File bot: [`wrongway-student/wrongway/submissions/MSSV.py`](wrongway-student/wro
 - **Tìm kiếm alpha-beta (negamax)** với đào sâu dần và bảng chuyển vị. Bot dùng 0.55 giây mỗi nước (giới hạn thật 1 giây, máy chấm chậm hơn), nhìn trước 5–6 nước trên laptop và khoảng 4–5 nước ở tốc độ máy chấm (tối đa 6).
 - **Ứng viên mỗi nút**: mọi nước đi hợp lệ, cộng thêm 8 bức tường tốt nhất chắn đường ngắn nhất của đối thủ.
 - **Hàm đánh giá tuyến tính** dựa trên khoảng cách tới đích của hai bên, số tường còn lại và lợi thế khi đối thủ đã hết tường. Các **trọng số được học bằng thuật toán tiến hóa qua tự đấu** ([`training/evolve.py`](training/evolve.py)), rồi ghi thẳng vào file bot.
+- **Bitboard** (như Stockfish): khoảng cách tới đích tính bằng BFS trên số nguyên 81 bit, loang mọi ô cùng lúc bằng phép dịch bit, nhanh gấp ~2 lần duyệt từng ô.
 - Bot tự mô phỏng luật chơi (đi, nhảy, đi chéo, tường hợp lệ). Test kiểm tra luật này khớp với `environment.py` của Arena trên hàng nghìn trạng thái ngẫu nhiên.
 
 Kết quả đo được (40 ván mỗi đối thủ, đổi bên, có nước mở đầu ngẫu nhiên):
