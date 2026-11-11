@@ -26,6 +26,7 @@ SUBMISSIONS = ARENA_DIR / "submissions"
 BUILTIN = [
     ("MSSV", "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ"),
     ("HuynhDuy_test2", "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ"),
+    ("bot", "Port từ bot.js (AI 'hard' game Quoridor): minimax 3 nửa-nước + tường dọc đường đối thủ"),
     ("wall_builder", "Bot mẫu: đặt tường theo BFS"),
     ("greedy", "Bot mẫu: đi theo đường ngắn nhất"),
     ("random_agent", "Bot mẫu: ngẫu nhiên"),
