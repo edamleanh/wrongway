@@ -60,15 +60,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/move", "/api/bots"):
+        if path != "/api/move":          # /api/bots chỉ đọc (thêm bot bằng git)
             return self._send(404, {"error": "not found"})
         length = int(self.headers.get("Content-Length") or 0)
         try:
             req = json.loads(self.rfile.read(length) or b"{}")
-            if path == "/api/move":
-                self._send(200, handle(req, BOT_PATH))
-            else:
-                self._send(200, _bots.handle_post(req))
+            self._send(200, handle(req, BOT_PATH))
         except (BadRequest, ValueError) as exc:
             self._send(400, {"error": str(exc) or "Request không hợp lệ"})
 

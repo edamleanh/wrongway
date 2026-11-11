@@ -77,6 +77,7 @@
   .msg { font-size: 13px; min-height: 18px; }
   .msg.ok { color: var(--ok); } .msg.err { color: var(--bad); white-space: pre-wrap; }
   .result { display: grid; gap: 8px; }
+  [hidden] { display: none !important; }
   .banner { padding: 10px 12px; border-radius: 10px; font-weight: 600; }
   .banner.a { background: var(--a-soft); color: var(--a); }
   .banner.b { background: var(--b-soft); color: var(--b); }
@@ -212,21 +213,11 @@
         <div class="errbox" id="errbox" hidden></div>
       </div>
 
-      <div class="card stack">
-        <h2>Upload bot</h2>
-        <input type="text" id="up-name" placeholder="Tên bot (vd: an_minimax)" maxlength="32">
-        <input type="text" id="up-author" placeholder="Tác giả (không bắt buộc)" maxlength="40">
-        <input type="text" id="up-desc" placeholder="Mô tả ngắn (không bắt buộc)" maxlength="120">
-        <input type="file" id="up-file" accept=".py,text/x-python">
-        <button class="btn primary" id="upload">Upload</button>
-        <div class="msg" id="up-msg"></div>
-        <div class="note">Một file <code>.py</code> có hàm <code>choose_action(observation)</code>, giống bài nộp Arena. Tối đa 100 KB.</div>
-      </div>
-
       <div class="card">
-        <h2>Bot đã upload</h2>
+        <h2>Danh sách bot</h2>
         <ul class="lib" id="lib"></ul>
-        <div class="note" id="lib-note"></div>
+        <div class="note" id="lib-note">Thêm bot: bỏ file <code>TênBot.py</code> (có hàm <code>choose_action(observation)</code>)
+          vào <code>wrongway-student/wrongway/submissions/</code> rồi push lên git. Web tự deploy lại và hiện bot mới.</div>
       </div>
     </aside>
   </div>
@@ -238,7 +229,8 @@
   const $ = id => document.getElementById(id);
   const svg = $("board");
   const opts = { limit: 2, speed: 250, games: 1 };
-  let library = { bots: [] }, worker = null, running = false, codeCache = {};
+  let library = { bots: [] }, worker = null, running = false;
+  const codeCache = {};
 
   // ---------- bàn cờ (chỉ xem)
   const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag);
@@ -314,76 +306,26 @@
     const sel = [$("bot0").value, $("bot1").value];
     for (const [i, s] of [[0, $("bot0")], [1, $("bot1")]]) {
       s.textContent = "";
-      const groups = [["Bot có sẵn", library.bots.filter(b => b.builtin)],
-                      ["Bot người dùng upload", library.bots.filter(b => !b.builtin)]];
-      for (const [label, list] of groups) {
-        if (!list.length) continue;
-        const og = document.createElement("optgroup"); og.label = label;
-        for (const b of list) {
-          const o = document.createElement("option");
-          o.value = b.id; o.textContent = b.name + (b.author ? " — " + b.author : "");
-          og.appendChild(o);
-        }
-        s.appendChild(og);
+      for (const b of library.bots) {
+        const o = document.createElement("option");
+        o.value = b.id; o.textContent = b.name; o.title = b.description || "";
+        s.appendChild(o);
       }
       const fallback = i === 0 ? "builtin:MSSV" : "builtin:wall_builder";
       s.value = keep && sel[i] && library.bots.some(b => b.id === sel[i]) ? sel[i] : fallback;
     }
-    if (keep && keep.select !== undefined) $("bot" + keep.select).value = keep.id;
 
     const lib = $("lib"); lib.textContent = "";
-    const users = library.bots.filter(b => !b.builtin);
-    for (const b of users) {
+    for (const b of library.bots) {
       const li = document.createElement("li");
       const info = document.createElement("div");
       info.innerHTML = '<div class="n"></div><div class="m"></div>';
       info.querySelector(".n").textContent = b.name;
-      const when = b.uploaded_at ? new Date(b.uploaded_at * 1000).toLocaleDateString("vi-VN") : "";
-      info.querySelector(".m").textContent = [b.author, b.description, b.size ? Math.ceil(b.size / 1024) + " KB" : "", when]
-        .filter(Boolean).join(" · ");
+      info.querySelector(".m").textContent = b.description || "";
       li.appendChild(info);
-      if (library.can_delete) {
-        const del = document.createElement("button"); del.textContent = "Xóa";
-        del.addEventListener("click", () => removeBot(b));
-        li.appendChild(del);
-      }
       lib.appendChild(li);
     }
-    $("lib-note").textContent = library.error ? "Lỗi kho lưu: " + library.error
-      : library.storage === null ? "Chưa bật kho lưu bot (Upstash Redis) trên server nên chưa upload được."
-      : users.length ? "" : "Chưa có bot nào được upload.";
   }
-
-  async function removeBot(b) {
-    let password = "";
-    if (library.storage === "redis") {
-      password = prompt("Mật khẩu admin để xóa bot '" + b.name + "':");
-      if (password === null) return;
-    } else if (!confirm("Xóa bot '" + b.name + "'?")) return;
-    try {
-      await getJSON("/api/bots", { method: "POST", headers: { "Content-Type": "application/json" },
-                                   body: JSON.stringify({ op: "delete", id: b.id, password }) });
-      delete codeCache[b.id];
-      await loadLibrary(true);
-    } catch (e) { alert(e.message); }
-  }
-
-  $("upload").addEventListener("click", async () => {
-    const msg = $("up-msg"), file = $("up-file").files[0];
-    msg.className = "msg"; msg.textContent = "";
-    if (!file) { msg.className = "msg err"; msg.textContent = "Chọn file .py trước"; return; }
-    let name = $("up-name").value.trim() || file.name.replace(/\.py$/i, "");
-    $("upload").disabled = true;
-    try {
-      const code = await file.text();
-      const res = await getJSON("/api/bots", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "upload", name, author: $("up-author").value, description: $("up-desc").value, code }) });
-      msg.className = "msg ok"; msg.textContent = "Đã upload '" + name + "'. Đã chọn bot này làm bên đi sau.";
-      $("up-file").value = ""; $("up-name").value = "";
-      await loadLibrary({ select: 1, id: res.id });
-    } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
-    $("upload").disabled = false;
-  });
 
   const INITIAL = { walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] };
   const emptyStats = () => ({ ok: 0, pass: 0, invalid: 0, timeout: 0, error: 0, max: 0 });

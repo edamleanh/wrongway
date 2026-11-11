@@ -19,10 +19,10 @@ projject/
 │   ├── check_submission.py    # kiểm tra trước khi nộp
 │   └── play_web.py            # server cục bộ chơi người vs bot (dùng chung api/_core.py)
 ├── public/index.html          # người vs bot (trình duyệt giữ trạng thái ván)
-├── public/arena.html          # bot vs bot + upload; match-worker.js chạy trận bằng Pyodide trong trình duyệt
+├── public/arena.html          # bot vs bot + lịch sử; match-worker.js chạy trận bằng Pyodide trong trình duyệt
 ├── api/                       # Vercel: move.py, bots.py (serverless) + _core.py, _bots.py (logic dùng chung)
-│                              # bot upload lưu ở Upstash Redis (KV_REST_API_*) hoặc uploads/ khi chạy cục bộ;
-│                              # server KHÔNG BAO GIỜ chạy code bot người dùng upload
+│                              # bot = mọi file .py hợp lệ trong submissions/ (thêm bot = push file, không upload qua web);
+│                              # server KHÔNG BAO GIỜ chạy code bot
 ├── vercel.json, .vercelignore
 ├── training/                  # train ngoài file nộp (thư viện tùy ý)
 │   ├── evolve.py              # tiến hóa (1+λ) qua tự đấu -> ghi WEIGHTS vào MSSV.py
