@@ -23,12 +23,23 @@
 | 15 | Đặc trưng `vuln` (độ dễ bị chặn: bức tường tốt nhất trên 4 bước đầu của đường đi làm người đó chậm thêm bao nhiêu), tính ở lá, có cache. Phân tích ván thua AI Hard cho thấy bot hay đi vào chỗ một bức tường làm đường dài thêm ~8 bước | Trọng số 0.4 / 0.8 / 1.2 / 1.6: **0.44 / 0.49 / 0.49 / 0.32 vs AI Hard** (80 ván, v2 cùng seed 0.28). Xét cả đường đi (thay vì 4 bước): 0.42. Nhưng `vuln` 1.0 chỉ 0.34 vs v1 (đi qua đi lại, hòa nhiều) | Dùng cùng #16 |
 | 16 | **Tường phòng thủ** ở gốc: tìm tối đa 3 bức tường đối thủ có thể đặt làm mình chậm ≥ 2 bước, xét thêm tường của mình chồng lấn/cắt ngang chỗ đó (không làm mình chậm đi). Lý do: bot `HuynhDuy_test2` (dựng hàng tường + cột tường để nhốt) thắng v2 **cả hai ván ở thế xuất phát chuẩn** dù v2 thắng nó 0.80 khi mở đầu ngẫu nhiên | Cùng `vuln` 1.0: **0.52 vs AI Hard (120 ván)**, **0.74 vs v2** (80 ván), 0.90 vs HuynhDuy (thắng cả 2 ván thế chuẩn), ~0.51 vs v1. Biến thể `vuln` 0.6: 0.465 vs Hard; thêm phạt đi qua đi lại: 0.435 vs Hard | **Dùng** → `MSSV.py` (v4) |
 | 17 | Tiến hóa lại v4 (12 thế hệ, độ sâu 4) với mục tiêu **trung bình 4 đối thủ** (AI Hard, HuynhDuy, v1, v2), nhận 4 bộ trọng số (`safe_race` 6.85→8.0, `wall_urgency` -0.08→-0.51, `opp_dist` -0.42→+0.12) | Đo bằng thời gian thật, seed 2026: **0.31 vs AI Hard** (80 ván; v4 cùng seed 0.50) nhưng 0.65 vs v4, 0.68 vs v1, 0.68 vs v2, 0.95 vs HuynhDuy → mạnh hơn trước bot alpha-beta, yếu hẳn trước AI Hard | Không thay `MSSV.py` (mục tiêu là AI Hard); giữ làm đối thủ `opponents/v5_evolved.py` |
+| 18 | Nhìn sâu hơn, đo ở **tốc độ Colab** (mô phỏng: ngân sách thời gian chia 2, vì máy chấm chậm hơn i5-11400H khoảng 2 lần). Đo độ sâu: với trần 6, khoảng 40% số nước còn thời gian để sâu hơn (cuối ván); vượt ngân sách tối đa 15–38 ms. Biến thể: bỏ trần (MAX_DEPTH 12) với 0.55 / 0.70 / 0.80 s | Seed 2026 vs AI Hard: bản hiện tại 0.41, trần 12: 0.53 / 0.44 / 0.60; đấu trực tiếp với bản hiện tại 0.59 / 0.42 / 0.51. **Seed 777: trần 12 chỉ 0.39 vs 0.36, đấu trực tiếp 0.45**. Thế chuẩn: trần 12 **thua `wall_builder` cả 2 ván** (bản hiện tại thắng 2/2), hòa 1-1 với `agent`. 0.80 s: lần nghĩ lâu nhất ≈ 0.88 s trên Colab chưa tính giao tiếp → quá sát giới hạn 1 s | **Bỏ**: không mạnh hơn rõ, lại thua ván thế chuẩn. Giữ 0.55 s, trần 6 |
 
 **Bài học:** bot tất định có thể bị một chuỗi nước cố định "bắt bài" ở thế xuất phát chuẩn mà đo bằng mở đầu ngẫu nhiên không thấy → luôn kiểm tra thêm cả hai ván thế chuẩn với từng đối thủ mới.
 
 **Kết luận đợt v3:** giữ nguyên v2 trong `MSSV.py`. Bài học: tối ưu theo một đối thủ duy nhất dễ khớp riêng với đối thủ đó; nếu tiến hóa tiếp nên dùng mục tiêu là trung bình trên nhiều đối thủ (AI Hard + các bản cũ).
 
 Ghi chú về luật: quá 1 giây cũng làm quân đứng yên, nhưng Arena giết tiến trình bot (mất kết quả đang nghĩ và biến toàn cục), nên luôn trả `{"type": "pass"}` thay vì để quá giờ.
+
+## Đối chiếu với bot bên ngoài (MSSV v4, 0.55 s/nước)
+
+| Đối thủ | Cách đấu | Kết quả |
+|---|---|---|
+| AI MCTS của [gorisanson/quoridor-ai](https://github.com/gorisanson/quoridor-ai) (MIT, Quoridor = luật Wrongway trừ `pass`), chạy offline qua Node, chỉ kiểm thử riêng | Novice 2.5k rollout (~1 s/nước): 40 ván mở đầu ngẫu nhiên / 40 ván thế chuẩn | **0.97 / 0.95** |
+| | Average 7.5k rollout (~3 s/nước): 20 ván mở đầu ngẫu nhiên | **0.65** |
+| | Strong 60k rollout (~21 s/nước): 2 ván thế chuẩn | 2/2 thắng |
+| `agent` (bot bạn gửi, alpha-beta, sửa bộ đọc tường cho khớp Arena) | 2 ván thế chuẩn / 40 ván mở đầu ngẫu nhiên | 2/2 thắng / **0.81** (3 hòa) |
+| AI Hard (wrongway.app, offline, có phép) | 80 ván mở đầu ngẫu nhiên, seed 2026 | 0.50 |
 
 ## Điểm yếu đã biết
 - Hiệu ứng chân trời: đôi khi đi qua đi lại để trì hoãn một bức tường nguy hiểm của đối thủ (thử nghiệm 7, 8 chưa sửa được mà không mất sức mạnh).
@@ -38,3 +49,4 @@ Ghi chú về luật: quá 1 giây cũng làm quân đứng yên, nhưng Arena g
 
 ## Ý tưởng chưa thử
 - Tiến hóa ở độ sâu 5 cho sát lúc nộp; tiến hóa đồng thời cả `WALL_CANDIDATES`.
+- Đo lại mọi thay đổi ở tốc độ Colab (ngân sách / 2): ở tốc độ đó v4 chỉ ~0.39 vs AI Hard (thay vì 0.50) và thua cả 2 ván thế chuẩn với AI Hard.
