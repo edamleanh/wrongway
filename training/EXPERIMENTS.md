@@ -20,14 +20,20 @@
 | 13 | `pass` **chỉ ở gốc** (cho mình, không làm phình cây) → engine v3 | Lần đầu 0.27 vs AI Hard, 0.58 vs v2_trained. **Đo lại (seed 777, 40 ván): 0.26 vs AI Hard, 0.50 vs v2**, v2 cũng được 0.28 vs AI Hard trên cùng seed → lợi thế lần đầu chỉ là nhiễu | Bỏ, giữ làm đối thủ `opponents/v3_pass_root.py` |
 | 14 | Tiến hóa v3 (20 thế hệ, độ sâu 4) chọn đột biến **theo điểm vs AI Hard**, thêm trọng số `pass_penalty` (học được ≈ 0.47) | 0.33 vs AI Hard (v2: 0.28, trong mức nhiễu) nhưng **0.28 vs v2**, 0.34 vs v3 gốc (17 hòa) → khớp riêng với AI Hard, yếu trước bot alpha-beta | Bỏ, giữ làm đối thủ `opponents/v3_evolved.py` |
 
+| 15 | Đặc trưng `vuln` (độ dễ bị chặn: bức tường tốt nhất trên 4 bước đầu của đường đi làm người đó chậm thêm bao nhiêu), tính ở lá, có cache. Phân tích ván thua AI Hard cho thấy bot hay đi vào chỗ một bức tường làm đường dài thêm ~8 bước | Trọng số 0.4 / 0.8 / 1.2 / 1.6: **0.44 / 0.49 / 0.49 / 0.32 vs AI Hard** (80 ván, v2 cùng seed 0.28). Xét cả đường đi (thay vì 4 bước): 0.42. Nhưng `vuln` 1.0 chỉ 0.34 vs v1 (đi qua đi lại, hòa nhiều) | Dùng cùng #16 |
+| 16 | **Tường phòng thủ** ở gốc: tìm tối đa 3 bức tường đối thủ có thể đặt làm mình chậm ≥ 2 bước, xét thêm tường của mình chồng lấn/cắt ngang chỗ đó (không làm mình chậm đi). Lý do: bot `HuynhDuy_test2` (dựng hàng tường + cột tường để nhốt) thắng v2 **cả hai ván ở thế xuất phát chuẩn** dù v2 thắng nó 0.80 khi mở đầu ngẫu nhiên | Cùng `vuln` 1.0: **0.52 vs AI Hard (120 ván)**, **0.74 vs v2** (80 ván), 0.90 vs HuynhDuy (thắng cả 2 ván thế chuẩn), ~0.51 vs v1. Biến thể `vuln` 0.6: 0.465 vs Hard; thêm phạt đi qua đi lại: 0.435 vs Hard | **Dùng** → `MSSV.py` (v4) |
+
+**Bài học:** bot tất định có thể bị một chuỗi nước cố định "bắt bài" ở thế xuất phát chuẩn mà đo bằng mở đầu ngẫu nhiên không thấy → luôn kiểm tra thêm cả hai ván thế chuẩn với từng đối thủ mới.
+
 **Kết luận đợt v3:** giữ nguyên v2 trong `MSSV.py`. Bài học: tối ưu theo một đối thủ duy nhất dễ khớp riêng với đối thủ đó; nếu tiến hóa tiếp nên dùng mục tiêu là trung bình trên nhiều đối thủ (AI Hard + các bản cũ).
 
 Ghi chú về luật: quá 1 giây cũng làm quân đứng yên, nhưng Arena giết tiến trình bot (mất kết quả đang nghĩ và biến toàn cục), nên luôn trả `{"type": "pass"}` thay vì để quá giờ.
 
 ## Điểm yếu đã biết
 - Hiệu ứng chân trời: đôi khi đi qua đi lại để trì hoãn một bức tường nguy hiểm của đối thủ (thử nghiệm 7, 8 chưa sửa được mà không mất sức mạnh).
-- Chỉ xét tường chắn đường ngắn nhất của đối thủ; không có tường "phòng thủ".
+- Tường phòng thủ chỉ xét ở gốc, chỉ chống bẫy một bức tường (bẫy cần nhiều tường có thể vẫn lọt).
+- `vuln` làm bot hơi rụt rè trước bot alpha-beta yếu (v1 chỉ ~0.5).
 
 ## Ý tưởng chưa thử
-- Đặc trưng "độ bền đường đi": số bước tăng thêm nếu đối thủ đặt bức tường tốt nhất (đắt, cần đo độ sâu bị mất).
+- Tiến hóa lại trọng số (có `vuln`) với mục tiêu trung bình nhiều đối thủ (AI Hard + v1 + v2).
 - Tiến hóa ở độ sâu 5 cho sát lúc nộp; tiến hóa đồng thời cả `WALL_CANDIDATES`.
