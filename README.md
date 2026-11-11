@@ -78,7 +78,15 @@ Hoặc dùng Vercel CLI: `npm i -g vercel`, rồi chạy `vercel` (bản thử) 
 3. (Không bắt buộc) Để xóa được bot, vào **Settings → Environment Variables** và thêm `ADMIN_PASSWORD` với mật khẩu bạn chọn.
 4. Vào tab **Deployments** và bấm **Redeploy** để áp dụng biến môi trường.
 
-Nếu chưa bật kho lưu, trang đấu bot vẫn chạy với 4 bot có sẵn, chỉ là chưa upload được.
+Nếu chưa bật kho lưu, trang đấu bot vẫn chạy với các bot có sẵn, chỉ là chưa upload được.
+
+**Thêm bot có sẵn qua git** (cho cả nhóm, không cần sửa code web):
+
+1. Bỏ file `<TênBot>.py` vào `wrongway-student/wrongway/submissions/`. Tên file 2–32 ký tự (chữ không dấu, số, `_`, `-`) và file phải có hàm `choose_action(observation)` ở cấp ngoài cùng.
+2. (Nên có) Dòng đầu docstring của file là mô tả hiện trên web, ví dụ `"""Bot của Nam: alpha-beta độ sâu 3."""`.
+3. Commit và push. Vercel tự deploy lại, bot mới hiện trong danh sách trang đấu bot.
+
+Web chỉ đọc cú pháp file (không chạy trên server); file lỗi cú pháp hoặc thiếu `choose_action` bị bỏ qua. Các tên `TEMPLATE`, `dev`, `bot` và file bắt đầu bằng `_` không được hiện (xem `HIDDEN` trong `api/_bots.py`).
 
 Cách hoạt động: `public/index.html` là trang tĩnh. `api/move.py` là serverless function Python, dùng `api/_core.py` cùng Arena và bot. Server **không lưu trạng thái**: trình duyệt giữ ván cờ và gửi kèm mỗi request. Nhờ vậy nhiều người chơi cùng lúc được, mỗi người một ván riêng. Bản chạy cục bộ `tools/play_web.py` dùng chung đúng code này.
 
@@ -89,7 +97,7 @@ python wrongway-student/wrongway/arena.py -p1 MSSV -p2 wall_builder --render --l
 python wrongway-student/wrongway/replay.py logs/demo.json --delay 0.3
 ```
 
-Các bot có sẵn trong `submissions/`: `MSSV`, `greedy`, `random_agent`, `wall_builder`. Đổi `-p1` và `-p2` để thử bot ở cả hai bên.
+Mọi file trong `submissions/` đều dùng được làm bot (ví dụ `MSSV`, `HuynhDuy_test2`, `greedy`, `random_agent`, `wall_builder`). Đổi `-p1` và `-p2` để thử bot ở cả hai bên.
 
 ### 3. Giải đấu thử và đo sức mạnh
 
