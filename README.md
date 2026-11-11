@@ -47,21 +47,33 @@ Trình duyệt tự mở <http://localhost:8000>. Nếu không, bạn mở link 
 
 Tùy chọn khác: `--port 8080`, `--no-browser`, `--bot greedy` (đấu với một bot khác trong `submissions/`). Bấm `Ctrl+C` để dừng.
 
-### 1a. Đấu bot với bot, upload bot mới
+### 1a. Đấu bot với bot
 
 Mở <http://localhost:8000/arena.html> (hoặc bấm **"Đấu bot vs bot →"** ở trang chính).
 
 - **Chọn trận:** chọn bot **đi trước** (xuất phát ở dưới) và bot **đi sau** (xuất phát ở trên). Nút ⇅ đổi bên. Chọn thêm giới hạn thời gian mỗi nước (1, 2 hoặc 5 giây) và tốc độ xem, rồi bấm **Bắt đầu**.
-- **Upload bot:** đặt tên (chữ không dấu, số, `_` hoặc `-`), chọn file `.py` có hàm `choose_action(observation)` giống bài nộp Arena (tối đa 100 KB), rồi bấm **Upload**. Bot mới xuất hiện trong danh sách cho mọi người.
 - **Đấu nhiều trận:** chọn **Số trận** (1, 2, 6, 10, 20). Bật **Đổi bên sau mỗi trận** để hai bot lần lượt đi trước/đi sau (mỗi cặp trận dùng chung seed), giống mùa giải. Bảng điểm tính thắng 3, hòa 1, thua 0.
 - **Lịch sử trận:** mỗi trận được lưu trong trình duyệt (tối đa 200 trận gần nhất). Bấm **Xem lại** để tua từng nước (nút ⏮ ◀ ▶ ⏭, thanh kéo, hoặc phím ← → và Space; Esc để thoát).
 - **Kết quả:** người thắng, số lượt, và thống kê từng bot (số nước hợp lệ, quá giờ, nước sai, lỗi, lần nghĩ lâu nhất). Nếu bot bị lỗi, traceback được hiện ra để sửa.
 
-**Bot chạy ngay trong trình duyệt** bằng [Pyodide](https://pyodide.org) (Python trên WebAssembly), trong một Web Worker. Server chỉ lưu và trả mã nguồn, **không bao giờ chạy code người khác upload**. Luật lấy từ chính `environment.py` của Arena; bot lỗi, quá giờ hoặc trả nước sai thì mất lượt, giống Arena. Bot bị treo quá lâu sẽ bị ngắt và xử thua. Lần đầu mở trang cần tải khoảng 10 MB, và Python trên WebAssembly chậm hơn khoảng 2–3 lần, nên giới hạn mặc định là 2 giây mỗi nước.
+**Bot chạy ngay trong trình duyệt** bằng [Pyodide](https://pyodide.org) (Python trên WebAssembly), trong một Web Worker. Server chỉ đọc và trả mã nguồn, **không bao giờ chạy code bot**. Luật lấy từ chính `environment.py` của Arena; bot lỗi, quá giờ hoặc trả nước sai thì mất lượt, giống Arena. Bot bị treo quá lâu sẽ bị ngắt và xử thua. Lần đầu mở trang cần tải khoảng 10 MB, và Python trên WebAssembly chậm hơn khoảng 2–3 lần, nên giới hạn mặc định là 2 giây mỗi nước.
 
-Khi chạy cục bộ, bot upload được lưu trong thư mục `uploads/` (không đưa lên git).
+### 1b. Thêm bot mới (qua git)
 
-### 1b. Deploy lên Vercel
+Web **không có upload**. Danh sách bot chính là các file trong [`wrongway-student/wrongway/submissions/`](wrongway-student/wrongway/submissions/):
+
+1. Bỏ file `<TênBot>.py` vào `wrongway-student/wrongway/submissions/`.
+   - Tên file 2–32 ký tự: chữ không dấu, số, `_` hoặc `-` (tên file là tên bot).
+   - Có hàm `choose_action(observation)` ở cấp ngoài cùng, giống bài nộp Arena. Tối đa 100 KB.
+2. (Nên có) Dòng đầu docstring của file là mô tả hiện trên web, ví dụ `"""Bot của Nam: alpha-beta độ sâu 3."""`.
+3. Chạy thử trước khi push: `python wrongway-student/wrongway/arena.py -p1 <TênBot> -p2 greedy` (cột `error` phải bằng 0).
+4. Commit và push lên nhánh `main`. Vercel tự deploy lại, bot mới hiện trong danh sách trang đấu bot sau khoảng 1 phút.
+
+File lỗi cú pháp hoặc thiếu `choose_action` tự bị bỏ qua. Các tên `TEMPLATE`, `dev`, `bot` và file bắt đầu bằng `_` không được hiện (xem `HIDDEN` trong [`api/_bots.py`](api/_bots.py)). Muốn sửa hoặc xóa bot: sửa hoặc xóa file rồi push.
+
+Cần quyền ghi vào repo để push; chủ repo mời thêm người ở **Settings → Collaborators** trên GitHub.
+
+### 1c. Deploy lên Vercel
 
 Repo đã cấu hình sẵn để deploy:
 
@@ -69,26 +81,9 @@ Repo đã cấu hình sẵn để deploy:
 2. Framework Preset: **Other**. Để trống Build Command và Output Directory.
 3. Bấm **Deploy**.
 
-Hoặc dùng Vercel CLI: `npm i -g vercel`, rồi chạy `vercel` (bản thử) hoặc `vercel --prod` (bản chính).
+Từ đó mỗi lần push lên `main`, Vercel tự deploy lại. Không cần database hay biến môi trường nào.
 
-**Bật kho lưu bot upload** (cần cho tính năng upload trên Vercel):
-
-1. Trong project trên Vercel, vào tab **Storage**, bấm **Create Database**, chọn **Upstash for Redis** (gói Free).
-2. Bấm **Connect** để nối database với project. Vercel tự thêm các biến môi trường `KV_REST_API_URL` và `KV_REST_API_TOKEN`.
-3. (Không bắt buộc) Để xóa được bot, vào **Settings → Environment Variables** và thêm `ADMIN_PASSWORD` với mật khẩu bạn chọn.
-4. Vào tab **Deployments** và bấm **Redeploy** để áp dụng biến môi trường.
-
-Nếu chưa bật kho lưu, trang đấu bot vẫn chạy với các bot có sẵn, chỉ là chưa upload được.
-
-**Thêm bot có sẵn qua git** (cho cả nhóm, không cần sửa code web):
-
-1. Bỏ file `<TênBot>.py` vào `wrongway-student/wrongway/submissions/`. Tên file 2–32 ký tự (chữ không dấu, số, `_`, `-`) và file phải có hàm `choose_action(observation)` ở cấp ngoài cùng.
-2. (Nên có) Dòng đầu docstring của file là mô tả hiện trên web, ví dụ `"""Bot của Nam: alpha-beta độ sâu 3."""`.
-3. Commit và push. Vercel tự deploy lại, bot mới hiện trong danh sách trang đấu bot.
-
-Web chỉ đọc cú pháp file (không chạy trên server); file lỗi cú pháp hoặc thiếu `choose_action` bị bỏ qua. Các tên `TEMPLATE`, `dev`, `bot` và file bắt đầu bằng `_` không được hiện (xem `HIDDEN` trong `api/_bots.py`).
-
-Cách hoạt động: `public/index.html` là trang tĩnh. `api/move.py` là serverless function Python, dùng `api/_core.py` cùng Arena và bot. Server **không lưu trạng thái**: trình duyệt giữ ván cờ và gửi kèm mỗi request. Nhờ vậy nhiều người chơi cùng lúc được, mỗi người một ván riêng. Bản chạy cục bộ `tools/play_web.py` dùng chung đúng code này.
+Cách hoạt động: `public/index.html` và `public/arena.html` là trang tĩnh. `api/move.py` (chơi người vs bot) là serverless function Python, dùng `api/_core.py` cùng Arena và bot. `api/bots.py` trả danh sách và mã nguồn bot trong `submissions/`. Server **không lưu trạng thái**: trình duyệt giữ ván cờ và gửi kèm mỗi request, nên nhiều người chơi cùng lúc được. Bản chạy cục bộ `tools/play_web.py` dùng chung đúng code này.
 
 ### 2. Cho hai bot đấu với nhau (Arena)
 
@@ -133,12 +128,13 @@ Mỗi thế hệ sinh vài bộ trọng số đột biến, cho chúng đấu v�
 ├── wrongway-student/wrongway/   # Arena của giảng viên (luật, chạy trận, replay)
 │   └── submissions/
 │       ├── MSSV.py              # bot của mình
+│       ├── HuynhDuy_test2.py, agent.py   # bot của người khác (thêm qua git)
 │       └── greedy.py, random_agent.py, wall_builder.py, TEMPLATE.py
 ├── public/
 │   ├── index.html               # chơi với bot
-│   ├── arena.html               # đấu bot vs bot, upload bot
+│   ├── arena.html               # đấu bot vs bot, lịch sử trận
 │   └── match-worker.js          # chạy trận trong trình duyệt (Pyodide)
-├── api/                         # Vercel: move.py (người vs bot), bots.py (thư viện bot)
+├── api/                         # Vercel: move.py (người vs bot), bots.py (danh sách bot từ submissions/)
 ├── vercel.json
 ├── tools/
 │   ├── play_web.py              # chạy giao diện chơi cục bộ
