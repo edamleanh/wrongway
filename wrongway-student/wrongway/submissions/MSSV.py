@@ -16,6 +16,8 @@ Cách hoạt động:
    ngay, khỏi tốn BFS cho mọi tường); rồi 2 "killer move" của tầng; hòa điểm thì
    xét "history"; các nước sau nước đầu dò bằng cửa sổ hẹp (PVS).
    -> nhanh hơn ~1.3 lần ở độ sâu 5-6, chọn nước y hệt.
+   Ở gốc, hai nước bằng điểm thì chọn nước tiến gần đích hơn (tránh đi qua đi lại
+   chờ đối thủ chặn trong khi đối thủ cứ thế đi về đích).
    Ứng viên mỗi nút: mọi nước đi + tối đa WALL_CANDIDATES tường chắn trên
    đường ngắn nhất của đối thủ (xếp theo lợi ích). Ở gốc thêm "tường phòng thủ":
    chiếm chỗ các bức tường nguy hiểm nhất mà đối thủ có thể đặt để nhốt mình.
@@ -45,6 +47,7 @@ HISTORY = True           # điểm lịch sử: nước hay gây cắt tỉa đ�
 PVS = True               # tìm cửa sổ hẹp cho các nước sau nước đầu
 LAZY_TT = True           # thử nước trong bảng TT trước khi sinh mọi nước con
 EPS = 1e-6
+PROGRESS_BONUS = 0.001   # ở gốc: khi hòa điểm, ưu tiên nước đưa mình gần đích hơn (phá thế hòa)
 WIN = 10000.0
 DIRS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 
@@ -570,15 +573,20 @@ def choose_action(observation):
                     alpha, cur_best = -float("inf"), None
                     for kid in kids:
                         _, _, npos, nh, nv, nb, nwl, nd = kid
+                        # Điểm ở gốc = giá trị tìm kiếm + thưởng tiến bộ. Khi đối thủ còn nhiều
+                        # tường, mọi nước có thể hòa điểm (tiến lên kiểu gì cũng "sẽ bị chặn")
+                        # -> không có thưởng thì bot đứng đi qua đi lại, mất nhịp.
+                        bonus = PROGRESS_BONUS * (dist[me] - nd[me])
+                        target = alpha - bonus           # giá trị tìm kiếm cần vượt
                         if PVS and cur_best is not None:
                             v = -search.negamax(1 - me, npos, nh, nv, nb, nwl, nd, depth - 1,
-                                                -alpha - EPS, -alpha)
-                            if v <= alpha:
+                                                -target - EPS, -target)
+                            if v <= target:
                                 continue
                         v = -search.negamax(1 - me, npos, nh, nv, nb, nwl, nd, depth - 1,
-                                            -float("inf"), -alpha)
-                        if v > alpha:
-                            alpha, cur_best = v, kid
+                                            -float("inf"), -target)
+                        if v > target:
+                            alpha, cur_best = v + bonus, kid
                 except Timeout:
                     # Hết giờ giữa chừng: kids[0] là nước tốt nhất của độ sâu trước và được xét
                     # trước tiên. Nếu đã có nước khác vượt qua nó ở độ sâu mới này thì nước đó
