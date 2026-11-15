@@ -23,7 +23,9 @@ Cách hoạt động:
    chiếm chỗ các bức tường nguy hiểm nhất mà đối thủ có thể đặt để nhốt mình.
 3. Hàm đánh giá = tổng có trọng số các đặc trưng (khoảng cách, số tường...).
    Có đặc trưng "độ dễ bị chặn" (vuln): một bức tường của đối thủ làm mình đi
-   thêm tối đa bao nhiêu bước.
+   thêm tối đa bao nhiêu bước. Đặc trưng "giữ tường khi dẫn xa" (reserve): đang
+   dẫn càng nhiều bước thì mỗi bức tường còn giữ càng quý (để chống lại tường
+   của đối thủ), nên bot không xài hết tường khi đã thắng chắc cuộc đua.
    Trọng số WEIGHTS được học bằng thuật toán tiến hóa qua tự đấu
    (training/evolve.py) rồi ghi thẳng vào file này.
 
@@ -49,6 +51,7 @@ LAZY_TT = True           # thử nước trong bảng TT trước khi sinh mọi
 EPS = 1e-6
 PROGRESS_BONUS = 0.001   # ở gốc: khi hòa điểm, ưu tiên nước đưa mình gần đích hơn (phá thế hòa)
 WIN = 10000.0
+RESERVE_CAP = 6          # reserve: mức dẫn tối đa được tính (bước)
 DIRS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 
 # Trọng số hàm đánh giá (nhìn từ người sắp đi):
@@ -58,10 +61,12 @@ DIRS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 #   safe_race     : +1 nếu đối thủ hết tường và mình về trước, -1 nếu ngược lại
 #   my_dist       : khoảng cách của mình (tuyệt đối)
 #   opp_dist      : khoảng cách của đối thủ (tuyệt đối)
+#   reserve       : giữ tường khi dẫn xa: wl_me*min(lead_me,CAP) - wl_opp*min(lead_opp,CAP)
+#                   (lead = số bước dẫn trước, 0 nếu đang thua) -> dẫn càng xa, tường càng quý
 #   vuln          : độ "dễ bị chặn": số bước bức tường tốt nhất của mình làm đối thủ
 #                   chậm đi trừ số bước bức tường tốt nhất của đối thủ làm mình chậm đi
 # ======================= WEIGHTS BEGIN (tự sinh bởi training/evolve.py) =======================
-WEIGHTS = {"race": 1.3805, "walls": 2.0643, "wall_urgency": -0.0789, "safe_race": 6.8451, "my_dist": -0.0117, "opp_dist": -0.4182, "vuln": 1.0}
+WEIGHTS = {"race": 1.3805, "walls": 2.0643, "wall_urgency": -0.0789, "safe_race": 6.8451, "my_dist": -0.0117, "opp_dist": -0.4182, "vuln": 1.0, "reserve": 0.1}
 # ======================= WEIGHTS END =========================================================
 
 
@@ -334,7 +339,9 @@ def evaluate(p, dist, wl, vuln=(0, 0)):
             + w["safe_race"] * safe
             + w["my_dist"] * dp
             + w["opp_dist"] * dq
-            + w.get("vuln", 0.0) * (vuln[q] - vuln[p]))
+            + w.get("vuln", 0.0) * (vuln[q] - vuln[p])
+            + w.get("reserve", 0.0) * (wl[p] * min(max(dq - dp, 0), RESERVE_CAP)
+                                       - wl[q] * min(max(dp - dq, 0), RESERVE_CAP)))
 
 
 # ------------------------------------------------------- 5. Tìm kiếm

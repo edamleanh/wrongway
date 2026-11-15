@@ -29,7 +29,7 @@ from common import BOT_FILE, CKPT_DIR, SUBMISSIONS, TRAIN_DIR, load_module, writ
 
 # Độ lớn đột biến riêng cho từng trọng số (nhân với sigma). Khóa mới -> mặc định 0.3.
 SCALES = {"race": 0.4, "walls": 0.3, "wall_urgency": 0.6, "safe_race": 1.0,
-          "my_dist": 0.15, "opp_dist": 0.15, "pass_penalty": 0.5, "vuln": 0.3}
+          "my_dist": 0.15, "opp_dist": 0.15, "pass_penalty": 0.5, "vuln": 0.3, "reserve": 0.05}
 OPPONENTS_DIR = TRAIN_DIR / "opponents"
 SAMPLE_BOTS = ["wall_builder"]
 
