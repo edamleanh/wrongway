@@ -13,6 +13,8 @@ Mỗi thế hệ:
 
 Khi train, bot tìm kiếm ở độ sâu cố định (--depth) thay vì theo thời gian
 -> nhanh và kết quả lặp lại được. Khi nộp, bot đào sâu hơn theo TIME_BUDGET.
+--depth nhận nhiều giá trị ("5,6"): mỗi cặp ván dùng một độ sâu theo seed, để trọng số
+không khớp riêng với độ sâu chẵn hay lẻ (xem EXPERIMENTS.md #31).
 
     python -u training/evolve.py --generations 30 --workers 10 > logs/evolve.log 2>&1
 """
@@ -29,7 +31,7 @@ from common import BOT_FILE, CKPT_DIR, SUBMISSIONS, TRAIN_DIR, load_module, writ
 
 # Độ lớn đột biến riêng cho từng trọng số (nhân với sigma). Khóa mới -> mặc định 0.3.
 SCALES = {"race": 0.4, "walls": 0.3, "wall_urgency": 0.6, "safe_race": 1.0,
-          "my_dist": 0.15, "opp_dist": 0.15, "pass_penalty": 0.5, "vuln": 0.3, "reserve": 0.05, "tempo": 0.3}
+          "pass_penalty": 0.5, "vuln": 0.3, "reserve": 0.05, "tempo": 0.3}
 OPPONENTS_DIR = TRAIN_DIR / "opponents"
 SAMPLE_BOTS = ["wall_builder"]
 
@@ -51,12 +53,16 @@ def _agent(spec):
 
 
 def play(job):
-    """job = (spec_p0, spec_p1, seed, opening_plies, budget, depth, max_turns) -> winner.
+    """job = (spec_p0, spec_p1, seed, opening_plies, budget, depth, max_turns[, opp_budget]) -> winner.
 
-    budget/depth = None: giữ cấu hình trong file bot.
+    budget/depth = None: giữ cấu hình trong file bot. depth là tuple -> chọn theo seed.
+    opp_budget: trần TIME_BUDGET cho đối thủ dạng file (để nhóm chuẩn không làm chậm việc train).
     """
     from environment import Environment
-    s0, s1, seed, opening, budget, depth, max_turns = job
+    s0, s1, seed, opening, budget, depth, max_turns = job[:7]
+    opp_budget = job[7] if len(job) > 7 else None
+    if isinstance(depth, (tuple, list)):
+        depth = depth[seed % len(depth)]
     rng = random.Random(seed)
     random.seed(seed)
     env = Environment(max_turns=max_turns)
@@ -72,6 +78,8 @@ def play(job):
                 module.TIME_BUDGET = budget
             if depth is not None:
                 module.MAX_DEPTH = depth
+        elif opp_budget is not None and getattr(module, "TIME_BUDGET", 0) > opp_budget:
+            module.TIME_BUDGET = opp_budget
         try:
             action = module.choose_action(env.get_observation(p))
         except Exception:
@@ -137,7 +145,13 @@ def main():
                     help="khi có --target: điểm tối thiểu khi đấu trực tiếp nhà vô địch")
     ap.add_argument("--sigma", type=float, default=1.0)
     ap.add_argument("--budget", type=float, default=10.0, help="trần thời gian/nước khi train")
-    ap.add_argument("--depth", type=int, default=4, help="độ sâu cố định khi train")
+    ap.add_argument("--depth", default="4",
+                    help="độ sâu cố định khi train; nhiều giá trị cách nhau dấu phẩy = xen kẽ theo seed")
+    ap.add_argument("--pool", action="append", default=[],
+                    help="đối thủ chuẩn (tên hoặc .py, lặp lại được); mặc định: wall_builder + mọi bot "
+                         "trong training/opponents/")
+    ap.add_argument("--opp-budget", type=float, default=None,
+                    help="trần TIME_BUDGET (giây) cho đối thủ dạng file")
     ap.add_argument("--opening", type=int, default=2, help="số nước mở đầu ngẫu nhiên")
     ap.add_argument("--max-turns", type=int, default=200)
     ap.add_argument("--workers", type=int, default=10)
@@ -153,15 +167,22 @@ def main():
     history = CKPT_DIR / "evolve_history.jsonl"
     rng = random.Random(a.seed if a.seed is not None else time.time_ns())
     champion = dict(load_module(bot_file, "bot_init").WEIGHTS)
+    if any(not isinstance(v, (int, float)) for v in champion.values()):
+        # Từ thử nghiệm #37, MSSV.py dùng hàm đánh giá tra bảng (428 ô): tiến hóa đột biến cả bộ
+        # không kham nổi chừng đó tham số -> dùng training/td_learn.py. Bản tuyến tính cuối cùng:
+        # training/opponents/v7_linear.py (chạy được với --bot).
+        raise SystemExit(f"{bot_file.name} có trọng số dạng bảng: dùng training/td_learn.py, "
+                         "hoặc --bot training/opponents/v7_linear.py cho hàm đánh giá tuyến tính")
     src = bot_file.read_text(encoding="utf-8")
     for k in SCALES:                              # đặc trưng bot có dùng mà chưa có trọng số -> 0
         if '"%s"' % k in src:
             champion.setdefault(k, 0.0)
     hall = []                                     # các nhà vô địch cũ
-    fixed = SAMPLE_BOTS + [str(p) for p in sorted(OPPONENTS_DIR.glob("*.py"))]
+    fixed = a.pool or SAMPLE_BOTS + [str(p) for p in sorted(OPPONENTS_DIR.glob("*.py"))]
     targets = [str(Path(t).resolve()) for t in a.target]
     sigma = a.sigma
-    cfg = (a.opening, a.budget, a.depth, a.max_turns)
+    depths = tuple(int(d) for d in str(a.depth).split(","))
+    cfg = (a.opening, a.budget, depths, a.max_turns, a.opp_budget)
     print("Bot:", bot_file.name, "| nhà vô địch ban đầu:", champion)
     print("Đối thủ chuẩn:", [Path(f).name for f in fixed], "| mục tiêu:", [Path(t).name for t in targets],
           flush=True)

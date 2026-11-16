@@ -25,9 +25,10 @@ projject/
 │                              # server KHÔNG BAO GIỜ chạy code bot
 ├── vercel.json, .vercelignore
 ├── training/                  # train ngoài file nộp (thư viện tùy ý)
-│   ├── evolve.py              # tiến hóa (1+λ) qua tự đấu -> ghi WEIGHTS vào MSSV.py
+│   ├── td_learn.py            # học tăng cường TD-leaf(λ) qua tự đấu -> ghi các bảng WEIGHTS vào MSSV.py (cần numpy)
+│   ├── evolve.py              # tiến hóa (1+λ) qua tự đấu; chỉ cho hàm đánh giá tuyến tính cũ (opponents/v7_linear.py)
 │   ├── gauntlet.py            # đo sức mạnh 1 bot vs nhiều đối thủ (mở đầu ngẫu nhiên)
-│   ├── opponents/             # bản cũ làm đối thủ chuẩn: v1, v2_untrained, v2_trained
+│   ├── opponents/             # bản cũ làm đối thủ chuẩn: v1, v2_trained, ..., v7_linear (bản trước khi học TD)
 │   ├── EXPERIMENTS.md         # nhật ký thử nghiệm: đã thử gì, kết quả, vì sao giữ/bỏ
 │   └── common.py              # đường dẫn, ghi khối WEIGHTS
 ├── tests/test_bot.py          # luật trong bot khớp Arena; bot hợp lệ, đủ nhanh
@@ -36,7 +37,7 @@ projject/
 
 ## Thiết kế bot
 
-Alpha-beta (negamax, đào sâu dần theo deadline) + hàm đánh giá tuyến tính. Trọng số được **học bằng tiến hóa qua tự đấu** (`training/evolve.py`) rồi **ghi thẳng vào khối `WEIGHTS BEGIN/END`** trong `MSSV.py` (file nộp không được đọc file ngoài). Luật mô phỏng trong bot phải khớp `environment.py` (có test). Chi tiết: skill `train-model`.
+Alpha-beta (negamax, đào sâu dần theo deadline) + hàm đánh giá **tra bảng** (tổng các ô: `dist[d]`, `walls[w][d]`, `lead[w][l]`, `vuln[w]`; 428 tham số). Các ô được **học bằng học tăng cường TD-leaf(λ) qua tự đấu** (`training/td_learn.py`), khởi đầu từ công thức tuyến tính cũ (trọng số tìm bằng tiến hóa, `training/evolve.py`), rồi **ghi thẳng vào khối `WEIGHTS BEGIN/END`** trong `MSSV.py` (file nộp không được đọc file ngoài). Luật mô phỏng trong bot phải khớp `environment.py` (có test). Chi tiết: skill `train-model`.
 
 Thử nghiệm mới: copy MSSV.py thành `submissions/dev.py`, sửa, đo bằng `python training/gauntlet.py dev MSSV training/opponents/v2_trained.py --pairs 20 --workers 6` (40 ván/đối thủ, chênh < 0.1 là nhiễu), ghi kết quả vào `training/EXPERIMENTS.md`, xóa dev.py khi xong. Xem EXPERIMENTS.md trước để không thử lại cái đã bỏ.
 
