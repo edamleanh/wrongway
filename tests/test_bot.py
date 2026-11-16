@@ -59,7 +59,8 @@ class RulesMatchArena(unittest.TestCase):
             got = [[b.ROW[c], b.COL[c]] for c in b.legal_moves(me, opp, blocked)]
             self.assertEqual(got, env.legal_moves(p))
             arena_map = env.distance_map(p)
-            dmap = b.distance_map(env.goal_rows[p], blocked)
+            layers = b.goal_layers(env.goal_rows[p], blocked)
+            dmap = [b.layer_index(layers, c) for c in range(81)]
             self.assertEqual(dmap, [arena_map[r][c] for r in range(9) for c in range(9)])
             self.assertEqual(b.distance(me, env.goal_rows[p], blocked), dmap[me])
             if checked % 5 == 0:   # kiểm tra tường chậm hơn, lấy mẫu
@@ -79,6 +80,30 @@ class RulesMatchArena(unittest.TestCase):
                 self.assertEqual(mine, arena)
             checked += 1
         self.assertGreater(checked, 500)
+
+    def test_wall_distance_shortcut(self):
+        """Mẹo tăng tốc phải cho đúng kết quả của BFS thường: đường ngắn nhất lấy từ lớp khoảng
+        cách, và dist_after_wall (chỉ loang quanh bức tường) = BFS làm lại từ đầu."""
+        b = self.bot
+        checked = 0
+        for k, env in enumerate(random_states(n_games=12, seed=2)):
+            if k % 3:
+                continue
+            blocked = b.blocked_from(frozenset(env.horizontal_walls), frozenset(env.vertical_walls))
+            for p in (0, 1):
+                start, goal = b.cell(*env.positions[p]), env.goal_rows[p]
+                layers = b.goal_layers(goal, blocked)
+                d0 = b.layer_index(layers, start)
+                path = b.shortest_path(start, d0, layers, blocked)
+                self.assertEqual(len(path), d0 + 1)
+                self.assertEqual(b.ROW[path[-1]], goal)
+                reach = b.reach_steps(start, blocked, d0)
+                for (o, r, c), i in b.walls_on_path(path).items():
+                    walled = b.with_wall(blocked, o, r, c)
+                    self.assertEqual(b.dist_after_wall(reach, i, r * 9 + c, layers, walled),
+                                     b.distance(start, goal, walled))
+                    checked += 1
+        self.assertGreater(checked, 1000)
 
 
 class BotBehaviour(unittest.TestCase):
