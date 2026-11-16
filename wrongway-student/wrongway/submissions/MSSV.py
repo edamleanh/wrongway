@@ -26,6 +26,10 @@ Cách hoạt động:
    thêm tối đa bao nhiêu bước. Đặc trưng "giữ tường khi dẫn xa" (reserve): đang
    dẫn càng nhiều bước thì mỗi bức tường còn giữ càng quý (để chống lại tường
    của đối thủ), nên bot không xài hết tường khi đã thắng chắc cuộc đua.
+   Hàm đánh giá ĐỐI XỨNG: đổi vai hai người chơi thì điểm đổi dấu (chỉ cộng thêm
+   hằng số "tempo" cho người sắp đi). Nhờ vậy một thế cờ được chấm như nhau dù
+   tìm tới độ sâu chẵn hay lẻ; bản cũ lệch ~9 điểm giữa hai trường hợp nên bot
+   đổi phong cách theo độ sâu đạt được ở mỗi lượt.
    Trọng số WEIGHTS được học bằng thuật toán tiến hóa qua tự đấu
    (training/evolve.py) rồi ghi thẳng vào file này.
 
@@ -40,15 +44,16 @@ from itertools import chain
 SIZE = 9
 N = SIZE * SIZE
 TIME_BUDGET = 0.55       # giây cho mỗi nước (giới hạn thật 1 s, Colab chậm hơn máy)
-MAX_DEPTH = 6            # độ sâu tối đa của đào sâu dần
+MAX_DEPTH = 10           # trần độ sâu của đào sâu dần (thế cờ ít tường tìm rất nhanh nên tới được 8-10)
 WALL_CANDIDATES = 8      # số tường tốt nhất được xét ở mỗi nút
 DEFENSE_THREATS = 3      # số tường nguy hiểm nhất của đối thủ cần tìm cách chặn trước (ở gốc)
-VULN_STEPS = 4           # độ dễ bị chặn: chỉ thử tường trên VULN_STEPS bước đầu của đường đi
+VULN_STEPS = 8           # độ dễ bị chặn: chỉ thử tường trên VULN_STEPS bước đầu của đường đi
 KILLERS = True           # nhớ 2 nước gây cắt tỉa ở mỗi tầng, thử sớm ở nút anh em
 HISTORY = True           # điểm lịch sử: nước hay gây cắt tỉa được ưu tiên khi hòa thứ tự
 PVS = True               # tìm cửa sổ hẹp cho các nước sau nước đầu
 LAZY_TT = True           # thử nước trong bảng TT trước khi sinh mọi nước con
 EPS = 1e-6
+RUSH_WALLS = 0           # còn <= RUSH_WALLS tường: ở gốc chỉ xét nước tiến gần đích (+ tường)
 PROGRESS_BONUS = 0.001   # ở gốc: khi hòa điểm, ưu tiên nước đưa mình gần đích hơn (phá thế hòa)
 WIN = 10000.0
 RESERVE_CAP = 6          # reserve: mức dẫn tối đa được tính (bước)
@@ -59,14 +64,15 @@ DIRS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 #   walls         : số tường mình còn - số tường đối thủ còn
 #   wall_urgency  : tường quý hơn khi đối thủ gần đích: wl_me/(d_opp+1) - wl_opp/(d_me+1)
 #   safe_race     : +1 nếu đối thủ hết tường và mình về trước, -1 nếu ngược lại
-#   my_dist       : khoảng cách của mình (tuyệt đối)
-#   opp_dist      : khoảng cách của đối thủ (tuyệt đối)
+#   tempo         : hằng số cộng cho người sắp đi (được đi trước). Mọi đặc trưng khác đều
+#                   ĐỐI XỨNG (đổi vai hai người chơi thì đổi dấu), nên cùng một thế cờ được
+#                   chấm như nhau dù nút lá ở độ sâu chẵn hay lẻ.
 #   reserve       : giữ tường khi dẫn xa: wl_me*min(lead_me,CAP) - wl_opp*min(lead_opp,CAP)
 #                   (lead = số bước dẫn trước, 0 nếu đang thua) -> dẫn càng xa, tường càng quý
 #   vuln          : độ "dễ bị chặn": số bước bức tường tốt nhất của mình làm đối thủ
 #                   chậm đi trừ số bước bức tường tốt nhất của đối thủ làm mình chậm đi
 # ======================= WEIGHTS BEGIN (tự sinh bởi training/evolve.py) =======================
-WEIGHTS = {"race": 1.3805, "walls": 2.0643, "wall_urgency": -0.0789, "safe_race": 6.8451, "my_dist": -0.0117, "opp_dist": -0.4182, "vuln": 1.0, "reserve": 0.1}
+WEIGHTS = {"race": 1.3805, "walls": 2.0643, "wall_urgency": -0.0789, "safe_race": 6.8451, "vuln": 1.0, "reserve": 0.1, "tempo": 1.0}
 # ======================= WEIGHTS END =========================================================
 
 
@@ -333,12 +339,11 @@ def evaluate(p, dist, wl, vuln=(0, 0)):
         safe = 1
     elif wl[p] == 0 and dq < dp:
         safe = -1
-    return (w["race"] * (dq - dp)
+    return (w.get("tempo", 0.0)
+            + w["race"] * (dq - dp)
             + w["walls"] * (wl[p] - wl[q])
             + w["wall_urgency"] * (wl[p] / (dq + 1.0) - wl[q] / (dp + 1.0))
             + w["safe_race"] * safe
-            + w["my_dist"] * dp
-            + w["opp_dist"] * dq
             + w.get("vuln", 0.0) * (vuln[q] - vuln[p])
             + w.get("reserve", 0.0) * (wl[p] * min(max(dq - dp, 0), RESERVE_CAP)
                                        - wl[q] * min(max(dp - dq, 0), RESERVE_CAP)))
@@ -573,6 +578,13 @@ def choose_action(observation):
         legal_m = {cell(*m) for m in observation["legal_moves"]}
         legal_w = {(w["orientation"], w["row"], w["col"]) for w in observation["legal_walls"]}
         kids = [k for k in kids if (k[1][1] in legal_m if k[1][0] == "move" else k[1][1] in legal_w)]
+        # Hết tường thì chỉ còn đua về đích: lùi/đi ngang không làm tường của đối thủ bớt
+        # nguy hiểm mà mất nhịp. Tìm kiếm có hiệu ứng chẵn/lẻ (độ sâu chẵn thấy lùi tốt hơn,
+        # lẻ thấy bằng nhau) -> không chặn thì bot tiến một bước lùi một bước hàng chục lượt.
+        if wl[me] <= RUSH_WALLS:
+            ahead = [k for k in kids if k[1][0] == "move" and k[7][me] < dist[me]]
+            if ahead:
+                kids = ahead + [k for k in kids if k[1][0] == "wall"]
         if kids:
             best, depth_done = kids[0], 0
             for depth in range(1, MAX_DEPTH + 1):
