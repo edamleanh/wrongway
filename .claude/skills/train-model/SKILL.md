@@ -27,6 +27,8 @@ Chạy lại sẽ tiếp tục từ trọng số hiện có trong MSSV.py.
 Lưu ý khi dùng TD (bài học #36–#37):
 - **Độ sâu tự đấu phải gần độ sâu thi đấu (5–6).** Luyện ở độ sâu 2–3 cho bảng thắng bảng đầu 0.68 ở độ sâu 3–4 nhưng thua bản gốc 0.34 ở thời gian thật.
 - Cột `vs bảng đầu` trong log rất nhiễu (60 ván, ±0.065) và ở độ sâu cố định: chỉ để phát hiện hỏng nặng. Nhận hay bỏ phải đo bằng `gauntlet.py` ở tốc độ Colab (`TIME_BUDGET = 0.275`), cùng seed với bản gốc, ≥ 200 ván trước AI Hard và ≥ 120 ván trước Challenger.
+- `--only pos,near_h` chỉ học các bảng được nêu (để đo riêng tác dụng của bảng mới); `--avg-from N` ghi thêm `avg.json` = trung bình bảng từ vòng N (bảng của một vòng dao động, bản trung bình ổn định hơn).
+- Bảng "thế đứng" (ô quân đứng + tường quanh quân, #38) đã thử và bỏ; bot mẫu: `training/opponents/td3_stance.py` (trình luyện tự nhận ra khi `WEIGHTS` có khóa `pos`).
 - Thêm bảng mới: thêm khóa vào `WEIGHTS`, dùng nó trong `evaluate`/`leaf` của bot **và** trong `Layout.features` của td_learn.py (lệnh chạy tự kiểm tra hai bên khớp nhau); khởi đầu bằng 0 để không đổi hành vi.
 
 ## Thêm một đặc trưng mới (bản tuyến tính + tiến hóa)

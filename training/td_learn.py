@@ -43,34 +43,44 @@ def _init(bot_path):
 
 # ------------------------------------------------------------------ bố trí tham số
 class Layout:
-    """Vị trí của từng bảng trong vector tham số phẳng."""
+    """Vị trí của từng bảng trong vector tham số phẳng (thứ tự = thứ tự khóa trong WEIGHTS)."""
 
     def __init__(self, m):
+        self.m = m
         self.dc, self.oc, self.lc = m.DIST_CAP, m.OPP_CAP, m.LEAD_CAP
         self.n_lead = 2 * self.lc + 1
-        self.TEMPO, self.SAFE, self.DIST = 0, 1, 2
-        self.WALLS = self.DIST + self.dc + 1
-        self.LEAD = self.WALLS + 11 * (self.oc + 1)
-        self.VULN = self.LEAD + 11 * self.n_lead
-        self.size = self.VULN + 11
+        shapes = [("tempo", ()), ("safe_race", ()), ("dist", (self.dc + 1,)), ("walls", (11, self.oc + 1)),
+                  ("lead", (11, self.n_lead)), ("vuln", (11,))]
+        self.stance = "pos" in m.WEIGHTS          # bot có bảng "thế đứng" (ô quân đứng + tường quanh quân)
+        if self.stance:
+            self.n_near = (m.NEAR_BACK + m.NEAR_AHEAD + 1) * m.NEAR_SIDE
+            buckets = max(m.WALL_BUCKET) + 1
+            shapes += [("pos", (buckets, 45)), ("near_h", (buckets, self.n_near)),
+                       ("near_v", (buckets, self.n_near))]
+        self.blocks, self.size = {}, 0            # tên bảng -> (vị trí đầu, kích thước)
+        for name, shape in shapes:
+            self.blocks[name] = (self.size, shape)
+            self.size += int(np.prod(shape))
+        self.TEMPO, self.SAFE, self.DIST, self.WALLS, self.LEAD, self.VULN = (
+            self.blocks[k][0] for k in ("tempo", "safe_race", "dist", "walls", "lead", "vuln"))
+        if self.stance:
+            self.POS, self.NEAR_H, self.NEAR_V = (self.blocks[k][0] for k in ("pos", "near_h", "near_v"))
+
+    def span(self, name):
+        start, shape = self.blocks[name]
+        return slice(start, start + int(np.prod(shape)))
 
     def to_vector(self, w):
-        return np.array([w["tempo"], w["safe_race"]] + list(w["dist"])
-                        + [x for row in w["walls"] for x in row]
-                        + [x for row in w["lead"] for x in row] + list(w["vuln"]), dtype=float)
+        return np.concatenate([np.ravel(np.array(w[name], dtype=float)) for name in self.blocks])
 
     def to_dict(self, v):
-        v = [float(x) for x in v]
-        oc1 = self.oc + 1
-        return {"tempo": v[self.TEMPO], "safe_race": v[self.SAFE],
-                "dist": v[self.DIST:self.WALLS],
-                "walls": [v[self.WALLS + w * oc1:self.WALLS + (w + 1) * oc1] for w in range(11)],
-                "lead": [v[self.LEAD + w * self.n_lead:self.LEAD + (w + 1) * self.n_lead] for w in range(11)],
-                "vuln": v[self.VULN:self.VULN + 11]}
+        return {name: (float(v[start]) if shape == () else
+                       np.asarray(v[self.span(name)], dtype=float).reshape(shape).tolist())
+                for name, (start, shape) in self.blocks.items()}
 
-    def features(self, p, dist, wl, vuln):
+    def features(self, p, dist, wl, vuln, pos=None, goals=None, hw=(), vw=()):
         """Các ô bảng có mặt trong E(thế cờ, người sắp đi p): dict {chỉ số: hệ số}.
-        Phải khớp evaluate() của bot (có kiểm tra ở selftest)."""
+        Phải khớp cách bot chấm điểm nút lá (có kiểm tra ở selftest)."""
         f = {self.TEMPO: 1.0}
         q = 1 - p
         if wl[q] == 0 and dist[p] <= dist[q]:
@@ -85,27 +95,55 @@ class Layout:
                     (self.LEAD + wl[x] * self.n_lead + lead + self.lc, sign)]
             if vuln[y]:
                 keys.append((self.VULN + wl[x], sign * vuln[y]))
+            if self.stance and wl[y] > 0:         # thế đứng của quân x (chỉ khi đối phương y còn tường)
+                m = self.m
+                b = m.WALL_BUCKET[wl[y]]
+                keys.append((self.POS + b * 45 + m.POS_KEY[goals[x]][pos[x]], sign))
+                near = m.NEAR_KEY[goals[x]][pos[x]]
+                for start, walls in ((self.NEAR_H, hw), (self.NEAR_V, vw)):
+                    keys += [(start + b * self.n_near + near[wall], sign) for wall in walls if wall in near]
             for i, c in keys:
                 f[i] = f.get(i, 0.0) + c
         return {i: c for i, c in f.items() if c}
 
 
-def selftest(m, lay, w):
+def bot_eval(m, p, dist, wl, vuln, pos, goals, hw, vw):
+    """Điểm nút lá đúng như Search.leaf của bot tính (khi không cắt tỉa sớm)."""
+    e = m.evaluate(p, dist, wl, vuln)
+    if "pos" in m.WEIGHTS:
+        q = 1 - p
+        e += m.stance(goals[p], pos[p], hw, vw, wl[q]) - m.stance(goals[q], pos[q], hw, vw, wl[p])
+    return e
+
+
+def selftest(m, lay):
+    """Tổng (tham số x hệ số đặc trưng) phải bằng điểm bot tự tính, với bảng ngẫu nhiên."""
     rng = random.Random(1)
-    vec = lay.to_vector(w)
-    for _ in range(5000):
-        dist = [rng.randint(1, 45), rng.randint(1, 45)]
-        wl = [rng.randint(0, 10), rng.randint(0, 10)]
-        vu = (rng.randint(0, 7) if wl[1] else 0, rng.randint(0, 7) if wl[0] else 0)
-        p = rng.randint(0, 1)
-        e = sum(vec[i] * c for i, c in lay.features(p, dist, wl, vu).items())
-        assert abs(e - m.evaluate(p, dist, wl, vu)) < 1e-9, (dist, wl, vu, e, m.evaluate(p, dist, wl, vu))
+    saved = m.WEIGHTS
+    vec = lay.to_vector(saved) + np.array([rng.uniform(-1, 1) for _ in range(lay.size)])
+    m.WEIGHTS = lay.to_dict(vec)
+    goals = [0, 8]
+    slots = [(r, c) for r in range(8) for c in range(8)]
+    try:
+        for _ in range(5000):
+            dist = [rng.randint(1, 45), rng.randint(1, 45)]
+            wl = [rng.randint(0, 10), rng.randint(0, 10)]
+            vu = (rng.randint(0, 7) if wl[1] else 0, rng.randint(0, 7) if wl[0] else 0)
+            p = rng.randint(0, 1)
+            pos = rng.sample(range(81), 2)
+            hw = frozenset(rng.sample(slots, rng.randint(0, 10)))
+            vw = frozenset(rng.sample(slots, rng.randint(0, 10)))
+            e = sum(vec[i] * c for i, c in lay.features(p, dist, wl, vu, pos, goals, hw, vw).items())
+            ref = bot_eval(m, p, dist, wl, vu, pos, goals, hw, vw)
+            assert abs(e - ref) < 1e-9, (dist, wl, vu, pos, e, ref)
+    finally:
+        m.WEIGHTS = saved
 
 
 # ------------------------------------------------------------------ tự đấu (tiến trình con)
 def pv_leaf(S, p, pos, hw, vw, blocked, wl, dist, depth):
     """Lá của biến chính: từ một nút đã tìm xong, đi theo nước tốt nhất lưu trong bảng chuyển vị
-    đủ depth nước. Trả (người sắp đi, pos, blocked, wl, dist) hoặc None nếu đứt giữa chừng."""
+    đủ depth nước. Trả (người sắp đi, pos, hw, vw, blocked, wl, dist) hoặc None nếu đứt giữa chừng."""
     for _ in range(depth):
         entry = S.tt.get((p, pos[0], pos[1], wl[0], wl[1], blocked))
         if entry is None or entry[3] is None:
@@ -115,7 +153,7 @@ def pv_leaf(S, p, pos, hw, vw, blocked, wl, dist, depth):
             return None
         pos, hw, vw, blocked, wl, dist = child
         p = 1 - p
-    return p, pos, blocked, wl, dist
+    return p, pos, hw, vw, blocked, wl, dist
 
 
 def start_state(rng, opening):
@@ -185,12 +223,13 @@ def play_game(job):
             kid = rng.choice([k for k in kids[:4] if k is not kid])
         feats = None
         if leaf is not None:
-            lp, lpos, lblocked, lwl, ldist = leaf
+            lp, lpos, lhw, lvw, lblocked, lwl, ldist = leaf
             vu = (S.vuln(0, lpos, lblocked, lwl, ldist), S.vuln(1, lpos, lblocked, lwl, ldist))
-            e = m.evaluate(lp, ldist, lwl, vu)
+            e = bot_eval(m, lp, ldist, lwl, vu, lpos, goals, lhw, lvw)
             if abs((e if lp == p else -e) - value) < 1e-6:
                 side = 1.0 if lp == 0 else -1.0
-                feats = [(i, c * side) for i, c in lay.features(lp, ldist, lwl, vu).items()]
+                feats = [(i, c * side)
+                         for i, c in lay.features(lp, ldist, lwl, vu, lpos, goals, lhw, lvw).items()]
         records.append((1.0 if p == 0 else -1.0, value, feats, explore))
         _, _, pos, hw, vw, blocked, wl, dist = kid
         p = 1 - p
@@ -286,14 +325,24 @@ def main():
     ap.add_argument("--workers", type=int, default=10)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--tag", default="td")
+    ap.add_argument("--only", default=None, help="chỉ học các bảng này (cách nhau dấu phẩy, vd pos,near_h,near_v); "
+                    "các bảng khác giữ nguyên")
+    ap.add_argument("--avg-from", type=int, default=None, help="ghi thêm avg.json = trung bình bảng từ vòng này "
+                    "trở đi (bảng của một vòng dao động; trung bình ổn định hơn)")
     a = ap.parse_args()
 
     bot_file = Path(a.bot).resolve()
     m = load_module(bot_file, "td_bot_main")
     lay = Layout(m)
-    selftest(m, lay, m.WEIGHTS)
+    selftest(m, lay)
     vec = lay.to_vector(m.WEIGHTS)
     init = vec.copy()
+    mask = np.ones(lay.size)
+    if a.only:
+        mask[:] = 0.0
+        for name in a.only.split(","):
+            mask[lay.span(name)] = 1.0
+    avg_sum, avg_n = np.zeros(lay.size), 0
     depths = [int(d) for d in a.depth.split(",")]
     eval_depths = [int(d) for d in a.eval_depth.split(",")]
     out_dir = CKPT_DIR / a.tag
@@ -315,7 +364,7 @@ def main():
                 K, ll = fit_k(games)
                 print("Thang sigmoid K = %.2f (log-loss %.4f)" % (K, ll), flush=True)
             num, den, st = td_update(games, K, a.lam, lay.size)
-            step = a.eta * K * num / (den + a.shrink)
+            step = mask * a.eta * K * num / (den + a.shrink)
             vec = vec + step
             vec[lay.VULN:lay.VULN + 11] = np.maximum(vec[lay.VULN:lay.VULN + 11], 0.0)   # hệ số vuln phải >= 0
             zs = [z for _, z in games]
@@ -336,6 +385,9 @@ def main():
                 line += " | vs bảng đầu %.3f" % (pts / len(res))
             print(line + " | %.0fs" % (time.time() - t0), flush=True)
             (out_dir / ("iter_%03d.json" % it)).write_text(json.dumps(lay.to_dict(vec)), encoding="utf-8")
+            if a.avg_from is not None and it >= a.avg_from:
+                avg_sum, avg_n = avg_sum + vec, avg_n + 1
+                (out_dir / "avg.json").write_text(json.dumps(lay.to_dict(avg_sum / avg_n)), encoding="utf-8")
             bot_file.write_text(write_weights(bot_file.read_text(encoding="utf-8"), lay.to_dict(vec)),
                                 encoding="utf-8")
 
