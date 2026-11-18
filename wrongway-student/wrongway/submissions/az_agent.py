@@ -14,11 +14,19 @@ from typing import NamedTuple
 
 RULES_VERSION = "wrongway-md-v1"
 MOVE_COUNT, ACTION_COUNT, PASS = 81, 210, 209
-DEFAULT_BUDGET = 0.70
-DEPLOY_MODE = "alphabeta"
+DEFAULT_BUDGET = 0.55       # seconds per move (limit 1 s; grading Colab CPU is ~2x slower than a laptop)
 DEPLOY_WALL_LIMIT = 16
 EVAL_WEIGHTS = (0.35, 0.08, 0.10, 0.025, 0.15, 0.12)
-MODEL_BLOB = ""  # Filled by tools/export_agent.py; no external model file is needed.
+POLICY_SHAPES = ((651, 256), (256, 128), (128, 210))   # backbone + policy head (AlphaZero net)
+VALUE_SHAPES = ((651, 32), (32, 1))                   # tiny value net distilled from the value head
+POLICY_WEIGHT = 0.20        # how much root logits (clipped to +-10) shift root move ordering
+VALUE_SCALE = 12.0          # tanh value (-1..1) -> pawn-ply units, the scale heuristic() uses
+
+# ==== MODEL BLOBS BEGIN (written by training/alphazero/phases/p06_embed.py - do not edit by hand) ====
+MODEL_BLOB = ""
+VALUE_BLOB = ""
+DEPLOY_MODE = "alphabeta"
+# ==== MODEL BLOBS END ====
 
 
 class State(NamedTuple):
@@ -300,43 +308,72 @@ def encode(state, mirror=False):
     return features
 
 
-def masked_policy(logits, actions):
-    if not actions:
-        return {}
-    top = max(logits[a] for a in actions)
-    weights = {a: math.exp(max(-60.0, logits[a] - top)) for a in actions}
-    total = sum(weights.values())
-    return {a: weight / total for a, weight in weights.items()}
+def unpack_blob(blob, shapes):
+    """Text blob -> flat float tuple (format: training/alphazero/blob.py).
+
+    base85(zlib(dtype byte 'e' float16 | 'f' float32, then little-endian floats));
+    per layer: weight rows [out][in], then bias."""
+    raw = zlib.decompress(base64.b85decode(blob.encode("ascii")))
+    code = chr(raw[0])
+    if code not in ("e", "f"):
+        raise ValueError("unknown weight dtype")
+    count = sum(inputs * outputs + outputs for inputs, outputs in shapes)
+    if len(raw) - 1 != count * struct.calcsize("<" + code):
+        raise ValueError("weight count does not match architecture")
+    return struct.unpack("<%d%s" % (count, code), raw[1:])
 
 
-class Student:
-    """Float32 MLP exported from PyTorch; all arithmetic here is standard Python."""
-    SHAPES = ((651, 64), (64, 32), (32, 211))
+class MLP:
+    """Fully connected net in plain Python: ReLU after every layer except the last.
+
+    The first layer is stored column by column, so a forward pass only visits the
+    non-zero inputs: encode() sets roughly 190 of its 651 features."""
+    SHAPES = ()
 
     def __init__(self, blob):
-        raw = zlib.decompress(base64.b85decode(blob.encode("ascii")))
-        count = sum(inputs * outputs + outputs for inputs, outputs in self.SHAPES)
-        if len(raw) != 4 * count:
-            raise ValueError("student weight count does not match architecture")
-        weights = struct.unpack("<%df" % count, raw)
-        self.layers = []
-        cursor = 0
+        weights = unpack_blob(blob, self.SHAPES)
+        cursor, self.layers = 0, []
         for inputs, outputs in self.SHAPES:
-            rows = tuple(weights[cursor + i * inputs:cursor + (i + 1) * inputs] for i in range(outputs))
+            rows = [weights[cursor + o * inputs:cursor + (o + 1) * inputs] for o in range(outputs)]
             cursor += inputs * outputs
-            bias = weights[cursor:cursor + outputs]
+            self.layers.append((rows, weights[cursor:cursor + outputs]))
             cursor += outputs
-            self.layers.append((rows, bias))
+        first_rows, first_bias = self.layers[0]
+        self.columns = list(zip(*first_rows))   # columns[i]: weights from input i to every hidden unit
+        self.first_bias = list(first_bias)
+        self.layers[0] = (None, None)           # rows no longer needed
 
-    def predict(self, state):
-        values = encode(state)
-        for index, (rows, bias) in enumerate(self.layers):
-            values = [b + sum(w * x for w, x in zip(row, values)) for row, b in zip(rows, bias)]
-            if index < 2:
-                values = [max(0.0, x) for x in values]
+    def forward(self, inputs):
+        hidden = self.first_bias
+        for x, column in zip(inputs, self.columns):
+            if x:
+                hidden = [h + x * w for h, w in zip(hidden, column)]
+        values = [h if h > 0.0 else 0.0 for h in hidden]
+        last = len(self.layers) - 1
+        for index in range(1, last + 1):
+            rows, bias = self.layers[index]
+            values = [b + sum(w * v for w, v in zip(row, values)) for row, b in zip(rows, bias)]
+            if index < last:
+                values = [v if v > 0.0 else 0.0 for v in values]
+        return values
+
+
+class PolicyNet(MLP):
+    """Backbone + policy head. Outputs live in the canonical (rotated) frame of encode()."""
+    SHAPES = POLICY_SHAPES
+
+    def logits(self, state):
+        out = self.forward(encode(state))
         rotate = (state.goal1 if state.turn % 2 else state.goal0) == 8
-        logits = [values[transform_action(a, rotate)] for a in range(ACTION_COUNT)]
-        return logits, math.tanh(values[210])
+        return [out[transform_action(a, rotate)] for a in range(ACTION_COUNT)]
+
+
+class TinyValueNet(MLP):
+    """651 -> 32 -> 1 value net; +1 = side to move wins."""
+    SHAPES = VALUE_SHAPES
+
+    def value(self, state):
+        return math.tanh(self.forward(encode(state))[0])
 
 
 def heuristic(state):
@@ -371,11 +408,13 @@ class SearchTimeout(Exception):
 
 
 class Search:
-    def __init__(self, budget=DEFAULT_BUDGET, wall_limit=16, model=None, mode="alphabeta"):
+    def __init__(self, budget=DEFAULT_BUDGET, wall_limit=16, policy=None, value_net=None, mode="alphabeta"):
         self.budget = budget
         self.wall_limit = wall_limit
-        self.model = model
+        self.policy = policy          # .logits(state) -> 210 floats; called once per turn at the root
+        self.value_net = value_net    # .value(state) -> -1..1 for the side to move; called at leaves
         self.mode = mode
+        self.root_logits = None
         self.nodes = 0
         self.depth = 0
         self.deadline = 0.0
@@ -391,20 +430,14 @@ class Search:
         goal = state.goal1 if state.turn % 2 else state.goal0
         if any(a // 9 == goal for a in pawn_moves(state)):
             return 9999.0
-        if self.model is not None:
-            return self.prediction(state)[1] * 12.0 + 0.10 * heuristic(state)
-        return heuristic(state)
-
-    def prediction(self, state):
-        key = ("n", id(self.model), state)
-        result = CACHE.get(key)
-        if result is None:
-            self.check()
-            logits, value = self.model.predict(state)
-            result = (tuple(logits), value)
-            CACHE.put(key, result)
-            self.check()
-        return result
+        if self.value_net is None:
+            return heuristic(state)
+        key = ("v", id(self.value_net), state)
+        value = CACHE.get(key)
+        if value is None:
+            value = self.value_net.value(state) * VALUE_SCALE
+            CACHE.put(key, value)
+        return value
 
     def fallback(self, state, actions):
         player = state.turn % 2
@@ -428,7 +461,7 @@ class Search:
         d_own = distances(state.h, state.v, goal)
         d_other = distances(state.h, state.v, other_goal)
         enemy_threat = any(a // 9 == other_goal for a in pawn_moves(state, 1 - player))
-        logits = self.prediction(state)[0] if self.model else None
+        logits = self.root_logits if root_actions is not None else None   # policy only at the root
         ranked_walls, defensive = [], []
         for action in candidates:
             self.check()
@@ -447,7 +480,7 @@ class Search:
                             for r, c in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)))
             value = de - 1.15 * do - 0.04 * near + 0.15 * connected
             if logits:
-                value += 0.20 * max(-10.0, min(10.0, logits[action]))
+                value += POLICY_WEIGHT * max(-10.0, min(10.0, logits[action]))
             ranked_walls.append((value, action))
             if enemy_threat and not any(a // 9 == other_goal for a in pawn_moves(child, 1 - player)):
                 defensive.append(action)
@@ -465,7 +498,7 @@ class Search:
             if action == preferred:
                 score += 100000.0
             if logits:
-                score += 0.2 * max(-10.0, min(10.0, logits[action]))
+                score += POLICY_WEIGHT * max(-10.0, min(10.0, logits[action]))
             if outcome(child) == player:
                 score += 1000000.0
             # Immediate losing replies are never hidden by a selective wall list.
@@ -481,7 +514,7 @@ class Search:
         self.nodes += 1
         if depth == 0 or outcome(state) is not None:
             return self.evaluate(state)
-        key = ("t", self.mode, self.wall_limit, id(self.model), state)
+        key = ("t", self.mode, self.wall_limit, id(self.value_net), state)
         entry = CACHE.get(key)
         preferred = entry[3] if entry else None
         original_alpha, original_beta = alpha, beta
@@ -513,6 +546,9 @@ class Search:
         self.nodes, self.depth, self.completed = 0, 0, False
         if outcome(state) is not None:
             return PASS
+        self.root_logits = None
+        if root_actions is None:
+            root_actions = legal_actions(state)   # training calls choose(state) without Arena actions
         # Avoid expensive wall generation before a fallback exists.
         actions = root_actions if root_actions is not None else pawn_moves(state) + [PASS]
         best = self.fallback(state, actions)
@@ -537,12 +573,13 @@ class Search:
                 if safe:
                     root_actions = safe
                     best = self.fallback(state, safe) if any(a < 81 for a in safe) else safe[0]
+            if self.policy is not None:
+                self.root_logits = self.policy.logits(state)
+                self.check()
             ordered = self.ordered(state, root_actions, best)
             if not ordered:
                 return best
             best = ordered[0]
-            if self.mode in ("puct", "heuristic_puct"):
-                return self.puct(state, ordered)
             for depth in range(1, state.max_turns - state.turn + 1):
                 self.check()
                 value, iteration_best, alpha = -float("inf"), best, -float("inf")
@@ -555,54 +592,6 @@ class Search:
                 ordered.remove(best)
                 ordered.insert(0, best)
                 if abs(value) >= 9999:
-                    break
-        except SearchTimeout:
-            pass
-        return best
-
-    def puct(self, state, root_actions):
-        tree = {}
-        best = root_actions[0]
-
-        def expand(position, actions=None):
-            self.check()
-            actions = self.ordered(position) if actions is None else actions
-            if self.model:
-                logits, value = self.prediction(position)
-            else:
-                logits = [-8.0] * ACTION_COUNT
-                for a in actions:
-                    logits[a] = -heuristic(play(position, a, False))
-                value = math.tanh(heuristic(position) / 6.0)
-            priors = masked_policy(logits, actions)
-            node = {a: [priors[a], 0, 0.0] for a in actions}
-            tree[position] = node
-            return value
-
-        try:
-            expand(state, root_actions)
-            while True:
-                self.check()
-                current, path = state, []
-                while current in tree and outcome(current) is None:
-                    node = tree[current]
-                    total = max(1, sum(edge[1] for edge in node.values()))
-                    action = max(node, key=lambda a: ((node[a][2] / node[a][1] if node[a][1] else 0.0) +
-                                 1.5 * node[a][0] * math.sqrt(total) / (1 + node[a][1])))
-                    path.append(node[action])
-                    current = play(current, action, False)
-                    self.check()
-                winner = outcome(current)
-                value = expand(current) if winner is None else (0.0 if winner == 2 else (1.0 if winner == current.turn % 2 else -1.0))
-                for edge in reversed(path):
-                    value = -value
-                    edge[1] += 1
-                    edge[2] += value
-                self.nodes += 1
-                self.completed = True
-                best = max(tree[state], key=lambda a: (tree[state][a][1], tree[state][a][0]))
-                # Bound the non-cache PUCT tree conservatively as well.
-                if len(tree) >= 512:
                     break
         except SearchTimeout:
             pass
@@ -690,12 +679,20 @@ def observation_for(state):
             "distances": [list(ds[row * 9:row * 9 + 9]) for row in range(9)]}
 
 
-_MODEL = None
+def _load(cls, blob):
+    """Decode an embedded net once at import (import limit 5 s; the 1 s move clock is untouched)."""
+    try:
+        return cls(blob) if blob else None
+    except (ValueError, zlib.error, struct.error):
+        return None
+
+
+_POLICY = _load(PolicyNet, MODEL_BLOB)
+_VALUE = _load(TinyValueNet, VALUE_BLOB)
 
 
 def choose_action(observation):
     """Arena entry point. Only return actions supplied as legal by Arena."""
-    global _MODEL
     started = time.monotonic()
     moves = observation.get("legal_moves", [])
     fallback = {"type": "pass"}
@@ -708,16 +705,15 @@ def choose_action(observation):
         fallback = {"type": "move", "to": list(min(moves, key=move_key))}
     try:
         actions = [action_index({"type": "move", "to": move}) for move in moves]
-        actions.extend(action_index(wall) for wall in observation.get("legal_walls", []))
+        actions.extend(action_index(dict(wall, type="wall")) for wall in observation.get("legal_walls", []))
         actions.append(PASS)
         state = state_from_observation(observation)
-        if MODEL_BLOB and _MODEL is None:
-            _MODEL = Student(MODEL_BLOB)
         budget = max(0.0, DEFAULT_BUDGET - (time.monotonic() - started))
-        model = _MODEL if DEPLOY_MODE in ("learned_alphabeta", "puct") else None
-        search = Search(budget, DEPLOY_WALL_LIMIT, model, DEPLOY_MODE)
+        learned = DEPLOY_MODE == "learned_alphabeta"
+        search = Search(budget, DEPLOY_WALL_LIMIT, _POLICY if learned else None,
+                        _VALUE if learned else None, DEPLOY_MODE)
         action = search.choose(state, actions)
         return action_dict(action) if action in actions else fallback
-    except (KeyError, ValueError, TypeError, IndexError, OverflowError, zlib.error, struct.error):
-        # An unrecognized official schema loses strategic strength, not the turn.
+    except (KeyError, ValueError, TypeError, IndexError, AttributeError, OverflowError, zlib.error, struct.error):
+        # An unexpected observation loses strategic strength, not the turn.
         return fallback
