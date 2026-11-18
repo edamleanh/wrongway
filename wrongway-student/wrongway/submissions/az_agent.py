@@ -21,6 +21,8 @@ POLICY_SHAPES = ((651, 256), (256, 128), (128, 210))   # backbone + policy head 
 VALUE_SHAPES = ((651, 32), (32, 1))                   # tiny value net distilled from the value head
 POLICY_WEIGHT = 0.20        # how much root logits (clipped to +-10) shift root move ordering
 VALUE_SCALE = 12.0          # tanh value (-1..1) -> pawn-ply units, the scale heuristic() uses
+HEURISTIC_WEIGHT = 0.10     # leaf = VALUE_SCALE * value + HEURISTIC_WEIGHT * heuristic(): keeps the
+                            # hand-written distance/wall knowledge the net may not have learned
 
 # ==== MODEL BLOBS BEGIN (written by training/alphazero/phases/p06_embed.py - do not edit by hand) ====
 MODEL_BLOB = ""
@@ -435,7 +437,7 @@ class Search:
         key = ("v", id(self.value_net), state)
         value = CACHE.get(key)
         if value is None:
-            value = self.value_net.value(state) * VALUE_SCALE
+            value = self.value_net.value(state) * VALUE_SCALE + HEURISTIC_WEIGHT * heuristic(state)
             CACHE.put(key, value)
         return value
 

@@ -49,3 +49,8 @@ def test_agent_path_default_and_override(tmp_path):
     assert ctx.agent_path.name == "az_agent.py"
     other = RunContext("u", preset="smoke", runs_dir=tmp_path, overrides=["agent_path=%s" % (tmp_path / "x.py")])
     assert other.agent_path == Path(tmp_path / "x.py")
+
+
+def test_gate_anchor_fields():
+    cfg = make_config("smoke")
+    assert cfg.anchor_games == 2 and 0.0 <= cfg.anchor_min <= 1.0

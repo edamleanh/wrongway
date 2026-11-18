@@ -26,7 +26,8 @@ def test_selfplay_and_eval_games(tmp_path):
     _init_worker({"model": str(ckpt), "new": str(ckpt), "old": str(ckpt)})
     records, stats = selfplay_game((3, SP_PARAMS))
     check_records(records)
-    assert eval_game((5, 0, 0.02, 8, 2, 12)) in (0.0, 0.5, 1.0)
+    assert eval_game((5, 0, 0.02, 8, 2, 12, "old")) in (0.0, 0.5, 1.0)
+    assert eval_game((5, 1, 0.02, 8, 2, 12, "base")) in (0.0, 0.5, 1.0)   # vs the no-network engine
 
 
 def test_run_parallel_uses_processes():

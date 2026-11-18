@@ -23,7 +23,9 @@ def status(ctx):
     for module in PHASES:
         print("  %-4s %-9s %s" % (module.PHASE, "done" if ctx.is_done(module.PHASE) else "pending", module.TITLE))
     for row in m["history"][-5:]:
-        print("  iter %(iter)d attempt %(attempt)d lr %(lr).1e score %(score).3f accepted %(accepted)s" % row)
+        print("  iter %d attempt %d lr %.1e score %.3f vs-no-net %s accepted %s"
+              % (row["iter"], row["attempt"], row["lr"], row["score"],
+                 "%.3f" % row["anchor"] if "anchor" in row else "-", row["accepted"]))
     if "benchmark" in m:
         print("  benchmark:", m["benchmark"])
 
