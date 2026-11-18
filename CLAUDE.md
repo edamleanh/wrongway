@@ -30,6 +30,8 @@ projject/
 │   ├── gauntlet.py            # đo sức mạnh 1 bot vs nhiều đối thủ (mở đầu ngẫu nhiên)
 │   ├── opponents/             # bản cũ làm đối thủ chuẩn: v1, v2_trained, ..., v7_linear (bản trước khi học TD)
 │   ├── EXPERIMENTS.md         # nhật ký thử nghiệm: đã thử gì, kết quả, vì sao giữ/bỏ
+│   ├── alphazero/             # AlphaZero: self-play MCTS -> net -> .pth -> nhúng vào submissions/az_agent.py (uv + torch)
+│   │   ├── phases/p01..p07    # mỗi phase cần phase trước; pipeline.py chạy tất cả; xem README.md
 │   └── common.py              # đường dẫn, ghi khối WEIGHTS
 ├── tests/test_bot.py          # luật trong bot khớp Arena; bot hợp lệ, đủ nhanh
 └── logs/                      # replay JSON, log train (không commit)
@@ -59,6 +61,9 @@ python tools/tournament.py MSSV --vs-all --seeds 3
 python tools/check_submission.py wrongway-student/wrongway/submissions/MSSV.py
 python -m unittest discover tests
 python tools/play_web.py                 # chơi với bot trên trình duyệt (http://localhost:8000)
+uv run python -m training.alphazero.pipeline --run main --preset quick   # train AlphaZero end-to-end
+uv run tensorboard --logdir training/alphazero/runs
+uv run pytest -m "not slow"
 ```
 
 Không chạy nhiều trận song song khi đo thời gian (làm sai lệch timing).
