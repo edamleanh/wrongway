@@ -32,3 +32,17 @@ def test_bootstrap_then_pretrain(tmp_path):
     assert manifest["best"] == "checkpoints/iter000.pt"
     assert (run / "data" / "bootstrap.npz").exists() and (run / "checkpoints" / "iter000.pt").exists()
     assert list((run / "tb").glob("events.out.tfevents.*"))
+
+
+def test_iterate_after_pretrain(tmp_path):
+    for args in (["training.alphazero.phases.p01_bootstrap", "--run", "s", "--preset", "smoke"],
+                 ["training.alphazero.phases.p02_pretrain", "--run", "s"],
+                 ["training.alphazero.phases.p03_iterate", "--run", "s"]):
+        r = run_cli(args, tmp_path)
+        assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    run = tmp_path / "s"
+    manifest = json.loads((run / "manifest.json").read_text())
+    assert manifest["iteration"] == 1 and manifest["history"]
+    assert (run / "data" / "selfplay_iter001.npz").exists()
+    assert (run / "checkpoints" / "iter001.pt").exists()
+    assert manifest["best"] in ("checkpoints/iter000.pt", "checkpoints/iter001.pt")
