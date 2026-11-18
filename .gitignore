@@ -14,3 +14,7 @@ uploads/
 
 # Bản port AI của bên thứ ba (chỉ để thử nghiệm riêng, không công khai)
 wrongway-student/wrongway/submissions/bot.py
+
+# AlphaZero runs (data, checkpoints, tensorboard) and uv env
+training/alphazero/runs/
+.venv/
