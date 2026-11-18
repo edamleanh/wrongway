@@ -63,6 +63,20 @@ run its own copy: `--set agent_path=/path/to/copy.py` when the run is created.
 - Benchmark rule (spec): accept only if ≥ 55% vs current `MSSV` over 80 games, no move > 0.55 s,
   tests pass. Record the result in `training/EXPERIMENTS.md`.
 
+## Kaggle (2 GPUs) + Hugging Face
+
+`training/alphazero/kaggle_train.ipynb`: clones the repo, runs the `standard` preset, mirrors the
+run to a private HF model repo (`AZ_HF_REPO`, pushed after every phase and p03 iteration; best
+checkpoint also at `best/<run>/best.pt`, embedded agent at `best/<run>/az_agent.py`).
+`stop_after_hours` makes p03 pause (exit code 3) before an iteration that would cross Kaggle's 12 h
+limit; re-running the notebook pulls the run back and continues. `data_parallel=true` wraps
+training in `torch.nn.DataParallel` when 2+ CUDA GPUs are visible. Manual sync:
+
+```bash
+uv run python -m training.alphazero.hf_sync pull --run std1 --repo henrytang785/az_agent
+uv run python -m training.alphazero.hf_sync push --run std1 --repo henrytang785/az_agent
+```
+
 ## Known risks
 
 - Distillation: on ~190-hot inputs a high learning rate kills ReLUs (lr 3e-3 killed all 32 in a

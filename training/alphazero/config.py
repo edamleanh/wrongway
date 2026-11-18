@@ -13,6 +13,9 @@ def _default_workers():
 class RunConfig:
     seed: int = 0
     device: str = "auto"              # auto | cpu | cuda | mps  (training + distill only)
+    data_parallel: bool = True        # cuda with 2+ GPUs: torch.nn.DataParallel splits each batch
+    stop_after_hours: float = 0.0     # >0: p03 pauses before an iteration that would end past this
+                                      # many hours since the process started (Kaggle 12 h limit)
     workers: int = field(default_factory=_default_workers)   # CPU processes for games
     agent_path: str = ""              # "" -> wrongway-student/wrongway/submissions/az_agent.py
     # p01 bootstrap: the alpha-beta bot plays itself

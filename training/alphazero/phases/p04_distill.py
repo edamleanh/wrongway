@@ -19,7 +19,7 @@ def run(ctx):
     device = pick_device(cfg.device)
     x, _, _ = load_buffer(ctx.path("data"), cfg.distill_positions)
     teacher = load_checkpoint(ctx.path(ctx.manifest["best"]))
-    targets = teacher_values(teacher, x, device)
+    targets = teacher_values(teacher, x, device, cfg=cfg)
     torch.manual_seed(cfg.seed)
     tiny = TinyValue()
     writer = ctx.writer()

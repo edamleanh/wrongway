@@ -23,12 +23,21 @@ def _maybe_mirror(xb, pib, enabled, generator):
     return xb, pib
 
 
+def parallel(net, device, cfg):
+    """Wrap net in DataParallel when training on 2+ CUDA GPUs (each batch is split across them).
+    The wrapper shares parameters with net, so optimisers/checkpoints keep using net itself."""
+    if cfg.data_parallel and device.type == "cuda" and torch.cuda.device_count() > 1:
+        return torch.nn.DataParallel(net)
+    return net
+
+
 def train_policy_value(net, data, cfg, device, writer, step, epochs, lr, tag):
     """Adam + cosine lr decay to cfg.lr_min. Loss = soft cross-entropy(policy) + MSE(value).
     Returns the next global step (TensorBoard x-axis continues across iterations)."""
     x, pi, z = data
     n = len(z)
     net.to(device).train()
+    model = parallel(net, device, cfg)
     opt = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=cfg.weight_decay)
     total_steps = max(1, epochs * math.ceil(n / cfg.batch_size))
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=total_steps, eta_min=min(cfg.lr_min, lr))
@@ -37,7 +46,7 @@ def train_policy_value(net, data, cfg, device, writer, step, epochs, lr, tag):
         for idx in torch.randperm(n, generator=gen).split(cfg.batch_size):
             xb, pib = _maybe_mirror(x[idx], pi[idx], cfg.mirror_augment, gen)
             xb, pib, zb = xb.to(device).float(), pib.to(device).float(), z[idx].to(device).float()
-            logits, value = net(xb)
+            logits, value = model(xb)
             policy_loss = -(pib * F.log_softmax(logits, dim=1)).sum(1).mean()
             value_loss = F.mse_loss(value, zb)
             loss = policy_loss + value_loss
@@ -63,10 +72,11 @@ def train_policy_value(net, data, cfg, device, writer, step, epochs, lr, tag):
 
 
 @torch.no_grad()
-def teacher_values(net, x, device, batch=4096):
+def teacher_values(net, x, device, batch=4096, cfg=None):
     """Value-head outputs of an AZNet-like module for every row of x (CPU float32 tensor)."""
     net.to(device).eval()
-    out = [net(x[i:i + batch].to(device).float())[1].float().cpu() for i in range(0, len(x), batch)]
+    model = parallel(net, device, cfg) if cfg is not None else net
+    out = [model(x[i:i + batch].to(device).float())[1].float().cpu() for i in range(0, len(x), batch)]
     return torch.cat(out)
 
 
@@ -84,20 +94,21 @@ def distill_value(tiny, x, targets, cfg, device, writer):
     val, train = perm[:n_val], perm[n_val:]
     opt = torch.optim.Adam(tiny.parameters(), lr=cfg.lr)
     tiny.to(device)
+    model = parallel(tiny, device, cfg)
     metrics = {}
     for epoch in range(cfg.distill_epochs):
         tiny.train()
         losses = []
         for idx in train[torch.randperm(len(train), generator=gen)].split(cfg.batch_size):
             xb, _ = _maybe_mirror(x[idx], None, cfg.mirror_augment, gen)   # value is mirror-invariant
-            loss = F.mse_loss(tiny(xb.to(device).float()), targets[idx].to(device))
+            loss = F.mse_loss(model(xb.to(device).float()), targets[idx].to(device))
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             losses.append(loss.item())
         tiny.eval()
         with torch.no_grad():
-            pred = tiny(x[val].to(device).float()).float().cpu()
+            pred = model(x[val].to(device).float()).float().cpu()
         metrics = {"train_mse": sum(losses) / max(1, len(losses)),
                    "val_mse": float(F.mse_loss(pred, targets[val])),
                    "val_pearson": pearson(pred, targets[val])}

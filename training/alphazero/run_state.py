@@ -12,6 +12,7 @@ from pathlib import Path
 from .config import make_config
 from .engine import AGENT_FILE
 
+PROCESS_STARTED = time.time()   # p03 stop_after_hours counts from here
 RUNS_DIR = Path(os.environ.get("AZ_RUNS_DIR", Path(__file__).resolve().parent / "runs"))
 PHASE_MODULES = {
     "p01": "p01_bootstrap", "p02": "p02_pretrain", "p03": "p03_iterate", "p04": "p04_distill",

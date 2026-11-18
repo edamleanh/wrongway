@@ -2,6 +2,7 @@
 import argparse
 import time
 
+from ..hf_sync import safe_push
 from ..run_state import RunContext
 
 
@@ -26,6 +27,7 @@ def run_phase(ctx, module, force=False):
     module.run(ctx)
     ctx.mark_done(module.PHASE)
     print("[%s] %s done in %.0fs" % (ctx.name, module.PHASE, time.time() - started), flush=True)
+    safe_push(ctx, "%s: %s done" % (ctx.name, module.PHASE))       # no-op unless AZ_HF_REPO is set
 
 
 def main(module):
