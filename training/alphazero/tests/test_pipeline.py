@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from training.alphazero.engine import AGENT_FILE, PROJECT, load_agent
+from training.alphazero.phases.p07_benchmark import parse_gauntlet
 
 
 def run_cli(args, runs_dir, timeout=900):
@@ -65,3 +66,23 @@ def test_distill_export_embed(tmp_path):
     module = load_agent(agent, name="az_smoke_embedded")
     assert module.DEPLOY_MODE == "learned_alphabeta" and module._POLICY and module._VALUE
     assert manifest["embed"]["max_policy_diff"] < 5e-2
+
+
+def test_parse_gauntlet():
+    out = ("az (40 cặp ván/đối thủ, mở đầu 2 nước ngẫu nhiên)\n"
+           "  vs MSSV           W  45  D   2  L  33  điểm 0.58\n"
+           "  vs training/opponents/v2_trained.py W  60  D   0  L  20  điểm 0.75\n")
+    assert parse_gauntlet(out) == {"MSSV": 0.58, "training/opponents/v2_trained.py": 0.75}
+
+
+@pytest.mark.slow
+def test_pipeline_smoke_end_to_end(tmp_path):
+    agent = tmp_path / "az_e2e.py"
+    shutil.copy(AGENT_FILE, agent)
+    r = run_cli(["training.alphazero.pipeline", "--run", "e2e", "--preset", "smoke",
+                 "--set", "agent_path=%s" % agent, "--to", "6"], tmp_path)
+    assert r.returncode == 0, r.stdout[-4000:] + r.stderr[-4000:]
+    manifest = json.loads((tmp_path / "e2e" / "manifest.json").read_text())
+    assert set(manifest["done"]) == {"p01", "p02", "p03", "p04", "p05", "p06"}
+    r = run_cli(["training.alphazero.pipeline", "--run", "e2e", "--status"], tmp_path)
+    assert "p06" in r.stdout and "pending" in r.stdout          # p07 still pending
