@@ -46,3 +46,22 @@ def test_iterate_after_pretrain(tmp_path):
     assert (run / "data" / "selfplay_iter001.npz").exists()
     assert (run / "checkpoints" / "iter001.pt").exists()
     assert manifest["best"] in ("checkpoints/iter000.pt", "checkpoints/iter001.pt")
+
+
+def test_distill_export_embed(tmp_path):
+    agent = tmp_path / "az_smoke.py"
+    shutil.copy(AGENT_FILE, agent)
+    steps = [["training.alphazero.phases.p01_bootstrap", "--run", "s", "--preset", "smoke", "--set", "agent_path=%s" % agent]]
+    steps += [["training.alphazero.phases.%s" % m, "--run", "s"]
+              for m in ("p02_pretrain", "p03_iterate", "p04_distill", "p05_export_pth", "p06_embed")]
+    for args in steps:
+        r = run_cli(args, tmp_path)
+        assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    run = tmp_path / "s"
+    manifest = json.loads((run / "manifest.json").read_text())
+    assert {"p04", "p05", "p06"} <= set(manifest["done"])
+    assert (run / "checkpoints" / "tiny_value.pt").exists()
+    assert (run / "export" / "az_smoke.pth").exists()
+    module = load_agent(agent, name="az_smoke_embedded")
+    assert module.DEPLOY_MODE == "learned_alphabeta" and module._POLICY and module._VALUE
+    assert manifest["embed"]["max_policy_diff"] < 5e-2
