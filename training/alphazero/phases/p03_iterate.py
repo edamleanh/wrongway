@@ -1,6 +1,7 @@
 """Phase 3 - AlphaZero loop, cfg.iterations times:
   self-play (MCTS with the best net) -> train a candidate on the replay buffer
-  -> gate (candidate vs best, alpha-beta with each net) -> accept if score >= accept_score,
+  -> gate: candidate vs best (alpha-beta with each net) AND candidate vs the no-network engine;
+  accept if score vs best >= accept_score and score vs no-network >= anchor_min,
   else retry once with lr * retry_lr_factor on the same data.
 
 Needs: p02.  Writes: data/selfplay_iterNNN.npz, checkpoints/iterNNN.pt, manifest best/history.
@@ -11,7 +12,7 @@ import time
 
 from ..config import pick_device
 from ..data import load_buffer, save_shard
-from ..games import eval_game, game_summary, run_parallel, selfplay_game
+from ..games import game_summary, run_parallel, selfplay_game, tagged_eval_game
 from ..net import load_checkpoint, save_checkpoint
 from ..trainer import train_policy_value
 
@@ -55,12 +56,20 @@ def train(ctx, iteration, lr, writer):
 
 
 def gate(ctx, candidate):
+    """-> (score vs best net, score vs no-network engine). Same opening twice, sides swapped."""
     cfg = ctx.cfg
-    jobs = [(cfg.seed + 7919 * (g // 2), g % 2, cfg.eval_budget, cfg.wall_limit, cfg.opening_plies, cfg.ply_cap)
-            for g in range(cfg.eval_games)]                     # same opening twice, sides swapped
+
+    def jobs(n, opponent, salt):
+        return [(cfg.seed + salt + 7919 * (g // 2), g % 2, cfg.eval_budget, cfg.wall_limit,
+                 cfg.opening_plies, cfg.ply_cap, opponent) for g in range(n)]
+
+    all_jobs = jobs(cfg.eval_games, "old", 0) + jobs(cfg.anchor_games, "base", 104729)
     nets = {"new": str(ctx.path(candidate)), "old": str(ctx.path(ctx.manifest["best"]))}
-    scores = list(run_parallel(eval_game, jobs, cfg.workers, nets))
-    return sum(scores) / max(1, len(scores))
+    scores = {"old": [], "base": []}
+    for opponent, score in run_parallel(tagged_eval_game, all_jobs, cfg.workers, nets):
+        scores[opponent].append(score)
+    mean = {k: sum(v) / len(v) if v else 1.0 for k, v in scores.items()}   # no games -> no constraint
+    return mean["old"], mean["base"]
 
 
 def run(ctx):
@@ -73,14 +82,15 @@ def run(ctx):
         lr = cfg.lr
         for attempt in range(2):
             candidate = train(ctx, iteration, lr, writer)
-            score = gate(ctx, candidate)
-            accepted = score >= cfg.accept_score
+            score, anchor = gate(ctx, candidate)
+            accepted = score >= cfg.accept_score and anchor >= cfg.anchor_min
             ctx.manifest["history"].append({"iter": iteration, "attempt": attempt, "lr": lr,
-                                            "score": score, "accepted": accepted})
+                                            "score": score, "anchor": anchor, "accepted": accepted})
             writer.add_scalar("gate/score", score, iteration)
+            writer.add_scalar("gate/anchor_score", anchor, iteration)
             writer.add_scalar("gate/accepted", int(accepted), iteration)
-            print("  gate: %s scores %.3f vs %s -> %s" % (candidate, score, ctx.manifest["best"],
-                                                          "ACCEPT" if accepted else "reject"), flush=True)
+            print("  gate: %s scores %.3f vs %s, %.3f vs no-network -> %s"
+                  % (candidate, score, ctx.manifest["best"], anchor, "ACCEPT" if accepted else "reject"), flush=True)
             if accepted:
                 ctx.manifest["best"] = candidate
                 break

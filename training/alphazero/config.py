@@ -44,6 +44,8 @@ class RunConfig:
     eval_budget: float = 0.10
     accept_score: float = 0.55
     retry_lr_factor: float = 0.5
+    anchor_games: int = 20            # candidate also plays the no-network engine (heuristic() leaves)
+    anchor_min: float = 0.5           # ...and must score at least this against it to be accepted
     # p04 distill
     distill_positions: int = 200_000
     distill_epochs: int = 50
@@ -64,7 +66,7 @@ PRESETS = {
               "epochs_per_iter": 4, "eval_games": 20, "distill_epochs": 15, "bench_pairs": 10},
     "smoke": {"workers": 2, "boot_games": 2, "boot_budget": 0.02, "ply_cap": 30, "batch_size": 32,
               "pretrain_epochs": 1, "epochs_per_iter": 1, "iterations": 1, "sp_games": 2,
-              "simulations": 4, "eval_games": 2, "eval_budget": 0.02, "distill_positions": 2000,
+              "simulations": 4, "eval_games": 2, "anchor_games": 2, "eval_budget": 0.02, "distill_positions": 2000,
               "distill_epochs": 1, "distill_min_pearson": 0.0, "bench_pairs": 1, "bench_workers": 2,
               "log_every": 1},
 }

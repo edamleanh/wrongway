@@ -23,6 +23,11 @@ wheel already has CUDA. Windows + NVIDIA: install a CUDA wheel, e.g.
 | 1 | `p01_bootstrap` | `data/bootstrap.npz` | `bootstrap/*` |
 | 2 | `p02_pretrain` | `checkpoints/iter000.pt` | `train/*` |
 | 3 | `p03_iterate` | `data/selfplay_iterNNN.npz`, `checkpoints/iterNNN.pt` | `selfplay/*`, `train/*`, `gate/*` |
+
+Gate (phase 3): a candidate must score ≥ `accept_score` vs the best net **and** ≥ `anchor_min`
+vs the same engine with no network (`gate/anchor_score`), so a net can never be accepted while
+being weaker than plain `heuristic()`. Leaf value = `VALUE_SCALE`·net + `HEURISTIC_WEIGHT`·`heuristic()`
+(constants in the agent file).
 | 4 | `p04_distill` | `checkpoints/tiny_value.pt` | `distill/*` |
 | 5 | `p05_export_pth` | `export/az_agent.pth` | – |
 | 6 | `p06_embed` | blobs inside `submissions/az_agent.py` | – |

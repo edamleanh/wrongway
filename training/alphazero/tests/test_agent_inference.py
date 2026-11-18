@@ -95,3 +95,15 @@ def test_embed_then_play_in_arena(tmp_path):
         assert time.perf_counter() - started < 1.0
         assert is_legal(obs, action)
         env.step(action)
+
+
+class ConstantValue:
+    def value(self, state):
+        return 0.5
+
+
+def test_leaf_eval_blends_value_with_heuristic():
+    state = list(random_states(n_games=1, seed=4))[10]
+    search = E.Search(budget=0.3, value_net=ConstantValue(), mode="learned_alphabeta")
+    expected = 0.5 * E.VALUE_SCALE + E.HEURISTIC_WEIGHT * E.heuristic(state)
+    assert abs(search.evaluate(state) - expected) < 1e-9

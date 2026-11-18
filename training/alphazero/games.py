@@ -97,17 +97,24 @@ def selfplay_game(job):
 
 
 def eval_game(job):
-    """(seed, new_side, budget, wall_limit, opening_plies, ply_cap) -> score of "new" (1 / 0.5 / 0).
+    """(seed, new_side, budget, wall_limit, opening_plies, ply_cap, opponent) -> score of "new" (1 / 0.5 / 0).
 
-    Both sides run the deployment alpha-beta: their own policy at the root, own value head at leaves."""
-    seed, new_side, budget, wall_limit, opening_plies, ply_cap = job
+    Both sides run the deployment alpha-beta: their own policy at the root, own value head at leaves.
+    opponent "old" = the worker's "old" net; "base" = the same engine with no network (heuristic() only)."""
+    seed, new_side, budget, wall_limit, opening_plies, ply_cap, opponent = job
     rng = random.Random(seed)
-    players = {key: (TorchPolicy(_NETS[key]), TorchValue(_NETS[key])) for key in ("new", "old")}
+    players = {"new": (TorchPolicy(_NETS["new"]), TorchValue(_NETS["new"]))}
+    players["opp"] = (None, None) if opponent == "base" else (TorchPolicy(_NETS[opponent]), TorchValue(_NETS[opponent]))
     state = random_opening(rng, opening_plies)
     while not finished(state, ply_cap):
-        policy, value = players["new" if state.turn % 2 == new_side else "old"]
+        policy, value = players["new" if state.turn % 2 == new_side else "opp"]
         action = E.Search(budget=budget, wall_limit=wall_limit, policy=policy, value_net=value,
                           mode="learned_alphabeta").choose(state)
         state = E.play(state, action, False)
     winner = E.outcome(state)
     return 0.5 if winner in (None, 2) else float(winner == new_side)
+
+
+def tagged_eval_game(job):
+    """eval_game, returning (opponent, score) so unordered pool results can be grouped."""
+    return job[6], eval_game(job)
