@@ -66,3 +66,16 @@ def test_distill_recovers_a_tiny_teacher():
                                           "distill_val_frac=0.1", "mirror_augment=false"])
     metrics = distill_value(TinyValue(), x, targets, cfg, torch.device("cpu"), Recorder())
     assert metrics["val_pearson"] > 0.8           # random teacher is a noisy target; real value head is smoother
+
+
+def test_parallel_is_a_no_op_without_two_cuda_gpus():
+    from training.alphazero.trainer import parallel
+    net = torch.nn.Linear(4, 2)
+    cfg = make_config("smoke")
+    assert parallel(net, torch.device("cpu"), cfg) is net
+
+
+def test_hf_push_is_a_no_op_without_repo(monkeypatch):
+    from training.alphazero.hf_sync import ENV_REPO, safe_push
+    monkeypatch.delenv(ENV_REPO, raising=False)
+    assert safe_push(object()) is False

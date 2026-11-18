@@ -5,15 +5,19 @@
   else retry once with lr * retry_lr_factor on the same data.
 
 Needs: p02.  Writes: data/selfplay_iterNNN.npz, checkpoints/iterNNN.pt, manifest best/history.
-Resumable: re-running continues at the next iteration. More iterations later:
+Resumable: re-running continues at the next iteration. With stop_after_hours > 0 the phase
+pauses (exit code 3, phase not marked done) before an iteration that would not finish in time.
+More iterations later:
   uv run python -m training.alphazero.phases.p03_iterate --run main --set iterations=30 --force"""
 import sys
 import time
 
 from ..config import pick_device
 from ..data import load_buffer, save_shard
+from ..hf_sync import safe_push
 from ..games import game_summary, run_parallel, selfplay_game, tagged_eval_game
 from ..net import load_checkpoint, save_checkpoint
+from ..run_state import PROCESS_STARTED
 from ..trainer import train_policy_value
 
 PHASE, REQUIRES, TITLE = "p03", "p02", "self-play / train / gate iterations"
@@ -75,8 +79,17 @@ def gate(ctx, candidate):
 def run(ctx):
     cfg = ctx.cfg
     writer = ctx.writer()
+    durations = []
     while ctx.manifest["iteration"] < cfg.iterations:
         iteration = ctx.manifest["iteration"] + 1
+        if cfg.stop_after_hours > 0 and durations:
+            elapsed = time.time() - PROCESS_STARTED
+            if elapsed + max(durations) > cfg.stop_after_hours * 3600:
+                writer.close()
+                print("  pausing before iteration %d: %.1f h used, an iteration takes up to %.1f h, limit %.1f h"
+                      % (iteration, elapsed / 3600, max(durations) / 3600, cfg.stop_after_hours), flush=True)
+                raise SystemExit(3)
+        iter_started = time.time()
         print("  == iteration %d/%d (best: %s)" % (iteration, cfg.iterations, ctx.manifest["best"]), flush=True)
         selfplay(ctx, iteration, writer)
         lr = cfg.lr
@@ -97,6 +110,9 @@ def run(ctx):
             lr *= cfg.retry_lr_factor
         ctx.manifest["iteration"] = iteration
         ctx.save()
+        writer.flush()
+        safe_push(ctx)                       # no-op unless AZ_HF_REPO is set
+        durations.append(time.time() - iter_started)
     writer.close()
 
 

@@ -7,6 +7,7 @@ dependencies = [
     "numpy>=1.26",
     "torch>=2.3",
     "tensorboard>=2.16",
+    "huggingface-hub>=0.23",
 ]
 
 [dependency-groups]
