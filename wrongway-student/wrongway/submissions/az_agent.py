@@ -20,8 +20,8 @@ EVAL_WEIGHTS = (0.35, 0.08, 0.10, 0.025, 0.15, 0.12)
 POLICY_SHAPES = ((651, 256), (256, 128), (128, 210))   # backbone + policy head (AlphaZero net)
 VALUE_SHAPES = ((651, 32), (32, 1))                   # tiny value net distilled from the value head
 POLICY_WEIGHT = 0.20        # how much root logits (clipped to +-10) shift root move ordering
-VALUE_SCALE = 12.0          # tanh value (-1..1) -> pawn-ply units, the scale heuristic() uses
-HEURISTIC_WEIGHT = 0.10     # leaf = VALUE_SCALE * value + HEURISTIC_WEIGHT * heuristic(): keeps the
+VALUE_SCALE = 1.0           # tanh value (-1..1) -> pawn-ply units (12 drowned heuristic(): EXPERIMENTS #40)
+HEURISTIC_WEIGHT = 1.0      # leaf = VALUE_SCALE * value + HEURISTIC_WEIGHT * heuristic(): keeps the
                             # hand-written distance/wall knowledge the net may not have learned
 
 # ==== MODEL BLOBS BEGIN (written by training/alphazero/phases/p06_embed.py - do not edit by hand) ====
