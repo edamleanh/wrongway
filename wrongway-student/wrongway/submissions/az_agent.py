@@ -630,8 +630,19 @@ def _walls_left(player):
     raise ValueError("missing wall inventory; official schema not yet verified")
 
 
+def _placed_walls(walls):
+    """Arena gives {"horizontal": [[r, c], ...], "vertical": [...]}; a list of wall dicts also works."""
+    if isinstance(walls, dict):
+        for key, orientation in (("horizontal", "H"), ("vertical", "V")):
+            for row, col in walls.get(key, ()):
+                yield wall_action(orientation, row, col)
+    else:
+        for wall in walls:
+            yield action_index(dict(wall, type="wall"))
+
+
 def state_from_observation(observation):
-    """Provisional decoder; exporter can replace this via a verified adapter."""
+    """Arena observation -> State. Player 0 is whoever heads for row 0."""
     you, opponent = observation["you"], observation["opponent"]
     own_goal, other_goal = you["goal_row"], opponent["goal_row"]
     if {own_goal, other_goal} != {0, 8}:
@@ -639,15 +650,17 @@ def state_from_observation(observation):
     player = 0 if own_goal == 0 else 1
     turn = observation.get("turn", observation.get("turn_count"))
     maximum = observation.get("max_turns", 500)
-    if type(turn) is not int or turn < 0 or turn % 2 != player:
-        raise ValueError("turn must be the total elapsed single-player turns")
+    if type(turn) is not int or turn < 0:
+        raise ValueError("invalid turn counter")
     if type(maximum) is not int or maximum < 1:
         raise ValueError("invalid turn limit")
+    if turn % 2 != player:
+        # Arena may let player 1 move first (starting_player=1). State assumes the side to
+        # move is turn % 2, so shift by one ply and keep the same number of plies left.
+        turn += 1
+        maximum += 1
     h = v = 0
-    for wall in observation["walls"]:
-        action = action_index(wall)
-        if not 81 <= action < PASS:
-            raise ValueError("expected placed wall")
+    for action in _placed_walls(observation["walls"]):
         bit = 1 << ((action - 81) % 64)
         if action < 145:
             h |= bit
