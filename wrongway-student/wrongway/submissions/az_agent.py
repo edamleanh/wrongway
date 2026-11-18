@@ -633,8 +633,8 @@ RULES_VERSION = "wrongway-md-v1"
 MOVE_COUNT, ACTION_COUNT, PASS = 81, 210, 209          # chỉ số nước: 0..80 đi, 81..208 tường, 209 bỏ lượt
 POLICY_SHAPES = ((651, 256), (256, 128), (128, 210))   # backbone + policy head (mạng AlphaZero)
 VALUE_SHAPES = ((651, 32), (32, 1))                   # value net nhỏ, chưng cất từ value head
-POLICY_WEIGHT = 0.5      # điểm gốc += POLICY_WEIGHT * log p (đơn vị điểm ~ 1.4 / bước đi)
-POLICY_FLOOR = -6.0      # log p thấp hơn mức này coi như bằng (nước policy ghét không bị phạt quá 3 điểm)
+POLICY_WEIGHT = 0.1      # điểm gốc += POLICY_WEIGHT * log p (đơn vị điểm ~ 1.4 / bước đi; 0.5 quá mạnh: EXPERIMENTS #41)
+POLICY_FLOOR = -6.0      # log p thấp hơn mức này coi như bằng (phạt tối đa POLICY_WEIGHT * 6 điểm)
 POLICY_EXTRA = 4         # thêm tối đa 4 tường hợp lệ policy thích nhất mà bộ sinh nước bỏ sót
 VALUE_WEIGHT = 0.0       # điểm gốc += VALUE_WEIGHT * value(sau nước đi); 0 = không dùng value net
 
