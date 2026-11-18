@@ -99,8 +99,8 @@ def selfplay_game(job):
 def eval_game(job):
     """(seed, new_side, budget, wall_limit, opening_plies, ply_cap, opponent) -> score of "new" (1 / 0.5 / 0).
 
-    Both sides run the deployment alpha-beta: their own policy at the root, own value head at leaves.
-    opponent "old" = the worker's "old" net; "base" = the same engine with no network (heuristic() only)."""
+    Both sides run the deployment alpha-beta (MSSV.py search); nets act only at the root.
+    opponent "old" = the worker's "old" net; "base" = no network = plays exactly like submissions/MSSV.py."""
     seed, new_side, budget, wall_limit, opening_plies, ply_cap, opponent = job
     rng = random.Random(seed)
     players = {"new": (TorchPolicy(_NETS["new"]), TorchValue(_NETS["new"]))}

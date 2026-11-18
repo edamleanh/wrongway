@@ -44,7 +44,7 @@ class RunConfig:
     eval_budget: float = 0.10
     accept_score: float = 0.55
     retry_lr_factor: float = 0.5
-    anchor_games: int = 20            # candidate also plays the no-network engine (heuristic() leaves)
+    anchor_games: int = 20            # candidate also plays the no-network engine (= submissions/MSSV.py)
     anchor_min: float = 0.5           # ...and must score at least this against it to be accepted
     # p04 distill
     distill_positions: int = 200_000
