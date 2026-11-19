@@ -12,3 +12,9 @@ wrongway-student/wrongway/submissions/bot.js
 wrongway-student/wrongway/submissions/wwapp_src/
 wrongway-student/wrongway/submissions/wwbench/
 wrongway-student/wrongway/submissions/dev.py
+# Môi trường train (uv: torch, tensorboard...): API chỉ dùng thư viện chuẩn,
+# để Vercel thấy các file này thì nó cài cả torch và deploy hỏng
+pyproject.toml
+uv.lock
+.python-version
+docs/
