@@ -27,7 +27,7 @@ WEIGHTS_FIRST = {
     "center_diff": 8.8000,
     "jump_tempo": 36.2500,
     "tempo": 44.1383,
-    "vuln_diff": 35.1084,
+    "vuln_diff": 30.1084,
 }
 
 # Bộ trọng số khi đi sau (player_id == 1)
@@ -40,7 +40,7 @@ WEIGHTS_SECOND = {
     "center_diff": 8.9078,
     "jump_tempo": 36.2500,
     "tempo": 43.5434,
-    "vuln_diff": 35.1289,
+    "vuln_diff": 30.1289,
 }
 
 # WEIGHTS_SECOND = {
