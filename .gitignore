@@ -20,3 +20,4 @@ training/alphazero/runs/
 .venv/
 
 .claude/
+agents/
