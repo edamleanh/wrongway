@@ -18,3 +18,5 @@ wrongway-student/wrongway/submissions/bot.py
 # AlphaZero runs (data, checkpoints, tensorboard) and uv env
 training/alphazero/runs/
 .venv/
+
+.claude/
