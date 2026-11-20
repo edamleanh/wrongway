@@ -55,6 +55,27 @@ marks every later phase as pending. Phase 3 resumes where it stopped.
 Phase 6 overwrites the agent file. To try weights without touching the real one, give the
 run its own copy: `--set agent_path=/path/to/copy.py` when the run is created.
 
+## Self-play of the deployed agent (`selfplay_train.py`)
+
+Continues from an already trained net (default: `MODEL_BLOB` of `submissions/az_agent_std1.py`,
+or any `.pt`) without phases 1-2. Unlike p03 (net-only MCTS, weaker than the agent), the teacher
+is the agent's own search: alpha-beta + net at the root plays itself (30% of games vs the
+no-network engine = MSSV), target = the move it played, value = result. Each generation:
+self-play -> train -> gate (vs best, vs no-network; scores split into moving first / second)
+-> accepted nets embedded into `runs/<run>/export/az_agent_sp.py`.
+
+```bash
+uv run python -m training.alphazero.selfplay_train --run sp1                    # 10 generations
+uv run python -m training.alphazero.selfplay_train --run sp1 --set generations=20 # continue
+uv run python -m training.alphazero.selfplay_train --run sp1 --status
+uv run python -m training.alphazero.selfplay_train --run try --preset smoke     # wiring test
+python training/gauntlet.py training/alphazero/runs/sp1/export/az_agent_sp.py MSSV --pairs 40 --workers 6
+```
+
+Knobs (`--set`): `sp_budget` (teacher seconds/move, default 0.25 > `eval_budget` 0.10 so the
+teacher outplays the student), `league_frac`, `explore_eps`/`explore_plies`, `sp_games`,
+`epochs_per_gen`, `lr` (5e-4, fine-tuning), `accept_score`, `anchor_min`.
+
 ## Using the result
 
 - Embed any exported weights into any agent file:
