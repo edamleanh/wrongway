@@ -22,13 +22,14 @@ HIDDEN = {
 }
 DESCRIPTIONS = {     # mô tả cho file không có docstring phù hợp (ưu tiên hơn docstring)
     "MSSV": "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ",
+    "az_agent_std1": "AlphaZero std1 (iter000): MSSV + mạng policy/value nhúng sẵn",
     "HuynhDuy_test2": "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ",
     "wall_builder": "Bot mẫu: đặt tường theo BFS",
     "greedy": "Bot mẫu: đi theo đường ngắn nhất",
     "random_agent": "Bot mẫu: ngẫu nhiên",
 }
 FIRST, LAST = ["MSSV"], ["wall_builder", "greedy", "random_agent"]   # thứ tự hiển thị
-MAX_SIZE = 100 * 1024
+MAX_SIZE = 1024 * 1024        # bot AlphaZero nhúng trọng số ~500 KB
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{2,32}$")
 
 

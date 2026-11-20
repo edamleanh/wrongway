@@ -37,14 +37,33 @@ def load_module(path, name=None):
 
 
 def weights_to_source(weights, digits=4):
-    """weights (dict/list số) -> dòng 'WEIGHTS = ...' (JSON hợp lệ cũng là Python hợp lệ)."""
+    """weights (dict/list số) -> mã nguồn 'WEIGHTS = ...' (JSON hợp lệ cũng là Python hợp lệ).
+
+    Trọng số phẳng (chỉ có số) viết trên một dòng. Trọng số dạng bảng (hàm đánh giá tra bảng,
+    training/td_learn.py) viết mỗi khóa một dòng, bảng 2 chiều mỗi hàng một dòng cho dễ đọc."""
     def rnd(x):
         if isinstance(x, dict):
             return {k: rnd(v) for k, v in x.items()}
         if isinstance(x, list):
             return [rnd(v) for v in x]
         return round(float(x), digits)
-    return "WEIGHTS = " + json.dumps(rnd(weights), separators=(", ", ": "))
+
+    def dump(x):
+        return json.dumps(x, separators=(", ", ": "))
+
+    w = rnd(weights)
+    if not any(isinstance(v, (list, dict)) for v in w.values()):
+        return "WEIGHTS = " + dump(w)
+    lines = ["WEIGHTS = {"]
+    for key, value in w.items():
+        if isinstance(value, list) and value and isinstance(value[0], list):
+            lines.append('    "%s": [' % key)
+            lines += ["        %s," % dump(row) for row in value]
+            lines.append("    ],")
+        else:
+            lines.append('    "%s": %s,' % (key, dump(value)))
+    lines.append("}")
+    return "\n".join(lines)
 
 
 def write_weights(bot_text, weights):
