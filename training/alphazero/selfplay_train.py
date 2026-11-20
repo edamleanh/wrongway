@@ -25,6 +25,9 @@ Continue / more generations (config is saved in the run; change with --set):
 Benchmark the result like any agent:
   python training/gauntlet.py training/alphazero/runs/sp1/export/az_agent_sp.py MSSV --pairs 40 --workers 6
 
+Kaggle: training/alphazero/kaggle_selfplay.ipynb (stop_after_hours -> exit code 3, AZ_HF_REPO
+pushes the run to Hugging Face after start and after every generation, the next session resumes).
+
 Outputs in training/alphazero/runs/<run>/: selfplay.json (config + progress), data/gen*.npz,
 checkpoints/gen*.pt, tb/ (TensorBoard: sp/*, gate/*, train/*), export/az_agent_sp.py."""
 import argparse
@@ -32,6 +35,7 @@ import json
 import os
 import random
 import shutil
+import sys
 import time
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
@@ -44,9 +48,10 @@ from .config import _parse, pick_device
 from .data import load_buffer, save_shard
 from .engine import AGENT_FILE, SUBMISSIONS, load_agent
 from .export import layers_from_linears
+from .hf_sync import safe_push_selfplay
 from .games import agent_selfplay_game, game_summary, random_opening, run_parallel, side_eval_game
 from .net import AZNet, load_checkpoint, policy_layers, save_checkpoint
-from .run_state import RUNS_DIR
+from .run_state import PROCESS_STARTED, RUNS_DIR
 from .trainer import train_policy_value
 
 STATE_FILE = "selfplay.json"
@@ -60,6 +65,8 @@ class SPConfig:
     data_parallel: bool = True
     workers: int = field(default_factory=lambda: max(1, (os.cpu_count() or 2) - 1))
     generations: int = 10
+    stop_after_hours: float = 0.0     # >0: exit 3 before a generation that would end past this many
+                                      # hours since the process started (Kaggle 12 h sessions)
     # self-play
     sp_games: int = 200
     sp_budget: float = 0.25           # seconds per move for the teacher search
@@ -269,6 +276,7 @@ def start(run, init):
         run.state.update(baseline=base, best_base=base)
         run.save()
         print("  baseline vs no-network (= MSSV.py): %s" % fmt(base), flush=True)
+    safe_push_selfplay(run, "%s: start from %s" % (run.name, init.name))   # no-op unless AZ_HF_REPO is set
 
 
 def status(run):
@@ -305,8 +313,16 @@ def main():
         for side in ("p0", "p1"):
             if run.state["baseline"][side] is not None:
                 writer.add_scalar("gate/base_score_%s" % side, run.state["baseline"][side], 0)
+    durations = []
     while run.state["gen"] < cfg.generations:
         gen = run.state["gen"] + 1
+        if cfg.stop_after_hours > 0 and durations:
+            elapsed = time.time() - PROCESS_STARTED
+            if elapsed + max(durations) > cfg.stop_after_hours * 3600:
+                writer.close()
+                print("pausing before generation %d: %.1f h used, a generation takes up to %.1f h, limit %.1f h"
+                      % (gen, elapsed / 3600, max(durations) / 3600, cfg.stop_after_hours), flush=True)
+                sys.exit(3)
         began = time.time()
         print("== generation %d/%d (best: %s)" % (gen, cfg.generations, run.state["best"]), flush=True)
         selfplay(run, gen, writer)
@@ -330,6 +346,8 @@ def main():
         run.state["gen"] = gen
         run.save()
         writer.flush()
+        safe_push_selfplay(run)                       # no-op unless AZ_HF_REPO is set
+        durations.append(time.time() - began)
     writer.close()
     status(run)
 
