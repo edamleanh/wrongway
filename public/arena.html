@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wrongway Bot Arena</title>
+<title>Wrongway - Bot vs bot</title>
 <style>
   :root {
     --bg: #f4f1ea; --panel: #fffdf8; --ink: #1f2328; --muted: #6b6f76; --line: #e2ddd2;
@@ -28,14 +28,66 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
-  body { background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px 16px 40px; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 0 16px 40px; }
   a { color: inherit; }
-  .wrap { max-width: 1100px; margin: 0 auto; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
-  h1 span { color: var(--muted); font-weight: 500; }
-  .nav { display: flex; gap: 8px; align-items: center; }
-  .nav a, .theme { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 8px; padding: 5px 10px; text-decoration: none; font: inherit; font-size: 13px; cursor: pointer; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -16px 20px;
+    padding: 10px 16px;
+    backdrop-filter: blur(8px);
+  }
+  .topbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .nav-tabs {
+    display: inline-flex;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .nav-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .nav-tab:hover { color: var(--ink); }
+  .nav-tab.active {
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .theme { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 9px; padding: 7px 11px; text-decoration: none; font: inherit; font-size: 14px; cursor: pointer; }
+  @media (max-width: 720px) {
+    .topbar-inner { gap: 10px; }
+    .nav-tabs { width: 100%; order: 3; }
+    .nav-tab { flex: 1; justify-content: center; text-align: center; padding: 7px 8px; font-size: 13.5px; }
+  }
   .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
   @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px; }
@@ -120,15 +172,23 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Wrongway <span>· đấu bot với bot</span></h1>
-    <div class="nav">
-      <a href="/">← Chơi với bot</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Wrongway</h1>
+    </div>
+    <div class="header-actions">
+      <nav class="nav-tabs" aria-label="Chế độ chơi">
+        <a class="nav-tab" href="/">Chơi với bot</a>
+        <a class="nav-tab active" href="/arena.html">Bot vs bot</a>
+        <a class="nav-tab" href="/tournament.html">Giải đấu</a>
+      </nav>
       <button class="theme" id="theme" title="Đổi giao diện sáng/tối">◐</button>
     </div>
-  </header>
+  </div>
+</header>
 
+<div class="wrap">
   <div class="layout">
     <div class="main">
     <section class="card">
@@ -178,6 +238,10 @@
           </div>
           <button class="swap" id="swap" title="Đổi bên đi trước / đi sau">⇅</button>
         </div>
+        <label class="btn-sm" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px dashed var(--line);border-radius:9px;background:var(--bg);color:var(--ink);cursor:pointer;font-weight:600;font-size:13px;width:100%;margin-top:2px;" title="Tải bot .py tạm thời từ máy của bạn (chạy WebAssembly trên trình duyệt, không lưu lên server)">
+          📁 Tải bot từ máy lên (.py)
+          <input type="file" id="upload-bot" accept=".py" multiple style="display:none">
+        </label>
         <div class="field-label">Thời gian tối đa mỗi nước</div>
         <div class="seg" id="limit-seg">
           <button data-v="1">1 giây</button><button data-v="2" class="on">2 giây</button><button data-v="5">5 giây</button>
@@ -293,26 +357,59 @@
     if (!res.ok) throw new Error(data.error || ("Lỗi " + res.status));
     return data;
   }
+  const uploadedBots = {};
+  const CUSTOM_KEY = "wrongway-custom-bots";
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY);
+    if (raw) Object.assign(uploadedBots, JSON.parse(raw));
+  } catch (e) {}
+  function saveCustomBots() {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(uploadedBots)); } catch (e) {}
+  }
+
   async function source(id) {
+    if (uploadedBots[id]) return uploadedBots[id].code;
     if (!codeCache[id]) codeCache[id] = (await getJSON("/api/bots?id=" + encodeURIComponent(id))).code;
     return codeCache[id];
   }
-  const botName = id => (library.bots.find(b => b.id === id) || { name: id }).name;
+  const botName = id => {
+    if (uploadedBots[id]) return uploadedBots[id].name;
+    return (library.bots.find(b => b.id === id) || { name: id }).name;
+  };
 
   // ---------- thư viện bot
   async function loadLibrary(keep) {
     try { library = await getJSON("/api/bots"); }
     catch (e) { $("lib-note").textContent = "Không tải được danh sách bot: " + e.message; return; }
     const sel = [$("bot0").value, $("bot1").value];
+    const upList = Object.values(uploadedBots);
+    const allBots = library.bots.concat(upList);
+
     for (const [i, s] of [[0, $("bot0")], [1, $("bot1")]]) {
       s.textContent = "";
+
+      const grpBuiltin = document.createElement("optgroup");
+      grpBuiltin.label = "Bot có sẵn trong submissions/";
       for (const b of library.bots) {
         const o = document.createElement("option");
         o.value = b.id; o.textContent = b.name; o.title = b.description || "";
-        s.appendChild(o);
+        grpBuiltin.appendChild(o);
       }
-      const fallback = i === 0 ? "builtin:MSSV" : "builtin:wall_builder";
-      s.value = keep && sel[i] && library.bots.some(b => b.id === sel[i]) ? sel[i] : fallback;
+      s.appendChild(grpBuiltin);
+
+      if (upList.length) {
+        const grpUp = document.createElement("optgroup");
+        grpUp.label = "Bot tải lên (chạy Pyodide)";
+        for (const b of upList) {
+          const o = document.createElement("option");
+          o.value = b.id; o.textContent = "📁 " + b.name; o.title = b.description || "";
+          grpUp.appendChild(o);
+        }
+        s.appendChild(grpUp);
+      }
+
+      const fallback = i === 0 ? "builtin:MSSV" : (upList.length ? upList[0].id : "builtin:wall_builder");
+      s.value = keep && sel[i] && allBots.some(b => b.id === sel[i]) ? sel[i] : fallback;
     }
 
     const lib = $("lib"); lib.textContent = "";
@@ -325,7 +422,50 @@
       li.appendChild(info);
       lib.appendChild(li);
     }
+    for (const b of upList) {
+      const li = document.createElement("li");
+      li.style.borderLeft = "3px solid var(--a)";
+      li.style.paddingLeft = "8px";
+      const info = document.createElement("div");
+      info.innerHTML = `<div class="n" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>📁 ${b.name} <span class="tag a" style="font-size:11px;margin-left:4px;">Tải lên</span></span>
+        <button class="link del-custom" data-id="${b.id}" style="color:var(--bad);font-size:12px;">Xóa</button>
+      </div><div class="m">${b.description}</div>`;
+      li.appendChild(info);
+      lib.appendChild(li);
+    }
+    lib.querySelectorAll(".del-custom").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const id = e.target.dataset.id;
+        delete uploadedBots[id];
+        delete codeCache[id];
+        saveCustomBots();
+        loadLibrary(true);
+      });
+    });
   }
+
+  $("upload-bot").addEventListener("change", async e => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    for (const f of files) {
+      try {
+        const text = await f.text();
+        if (!text.includes("choose_action")) {
+          alert("File " + f.name + " không hợp lệ: thiếu hàm choose_action(observation)");
+          continue;
+        }
+        const stem = f.name.replace(/\.py$/i, "");
+        const id = "uploaded:" + stem;
+        uploadedBots[id] = { id, name: stem, code: text, description: "Bot tải lên tạm thời (chạy bằng WebAssembly/Pyodide trong trình duyệt)" };
+        codeCache[id] = text;
+      } catch (err) {
+        alert("Lỗi đọc file " + f.name + ": " + err.message);
+      }
+    }
+    saveCustomBots();
+    loadLibrary(true);
+  });
 
   const INITIAL = { walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] };
   const emptyStats = () => ({ ok: 0, pass: 0, invalid: 0, timeout: 0, error: 0, max: 0 });

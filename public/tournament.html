@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrongway Tournament</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #1f2328; --muted: #6b6f76; --line: #e2ddd2;
+    --cell: #e9e3d6; --goal-a: #d7e6f7; --goal-b: #f6dfd3;
+    --a: #2563c9; --a-soft: rgba(37, 99, 201, .15);
+    --b: #d4542b; --b-soft: rgba(212, 84, 43, .15);
+    --gold: #d97706; --gold-soft: rgba(217, 119, 6, .15);
+    --ok: #2f8f5b; --bad: #c23b3b;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --panel: #1d2024; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2e3238;
+      --cell: #2a2e34; --goal-a: #1e3350; --goal-b: #4a2a1f;
+      --a: #5b93ee; --a-soft: rgba(91,147,238,.2); --b: #ef7b52; --b-soft: rgba(239,123,82,.2);
+      --gold: #f59e0b; --gold-soft: rgba(245, 158, 11, .2);
+      --ok: #4cbf82; --bad: #e86060; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --panel: #1d2024; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2e3238;
+    --cell: #2a2e34; --goal-a: #1e3350; --goal-b: #4a2a1f;
+    --a: #5b93ee; --a-soft: rgba(91,147,238,.2); --b: #ef7b52; --b-soft: rgba(239,123,82,.2);
+    --gold: #f59e0b; --gold-soft: rgba(245, 158, 11, .2);
+    --ok: #4cbf82; --bad: #e86060; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 0 16px 40px; }
+  a { color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -16px 20px;
+    padding: 10px 16px;
+    backdrop-filter: blur(8px);
+  }
+  .topbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .nav-tabs {
+    display: inline-flex;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .nav-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .nav-tab:hover { color: var(--ink); }
+  .nav-tab.active {
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .theme { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 9px; padding: 7px 11px; text-decoration: none; font: inherit; font-size: 14px; cursor: pointer; }
+  @media (max-width: 720px) {
+    .topbar-inner { gap: 10px; }
+    .nav-tabs { width: 100%; order: 3; }
+    .nav-tab { flex: 1; justify-content: center; text-align: center; padding: 7px 8px; font-size: 13.5px; }
+  }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 20px; }
+  .main { display: grid; gap: 0; }
+  .side { display: grid; gap: 16px; }
+
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .head-row h2 { margin: 0; }
+
+  /* Bảng xếp hạng */
+  .table-wrap { overflow-x: auto; margin: 0 -4px; }
+  table.standings { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  table.standings th, table.standings td { padding: 9px 8px; border-top: 1px solid var(--line); text-align: right; }
+  table.standings th:first-child, table.standings td:first-child { text-align: center; width: 44px; }
+  table.standings th:nth-child(2), table.standings td:nth-child(2) { text-align: left; }
+  table.standings th { font-weight: 600; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+  table.standings tr.top-1 td:nth-child(2) { font-weight: 700; color: var(--ink); }
+  table.standings td.pts { font-weight: 700; font-size: 15px; color: var(--ink); }
+  .rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--bg); color: var(--muted); }
+  .rank-badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .rank-badge.silver { background: rgba(148, 163, 184, .25); color: #64748b; }
+  .rank-badge.bronze { background: rgba(180, 83, 9, .15); color: #b45309; }
+
+  /* Live board */
+  .live-box { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: center; }
+  @media (max-width: 600px) { .live-box { grid-template-columns: 1fr; } }
+  svg#board { width: 100%; max-width: 240px; height: auto; display: block; border-radius: 8px; border: 1px solid var(--line); }
+  .cell { fill: var(--cell); }
+  .goal-a { fill: var(--goal-a); } .goal-b { fill: var(--goal-b); }
+  .wall.a { fill: var(--a); } .wall.b { fill: var(--b); }
+  .wall.new { animation: fade .3s ease-out; } @keyframes fade { from { opacity: 0; } }
+  .pawn circle { stroke: var(--panel); stroke-width: 3; }
+  .pawn text { font-weight: 700; font-size: 14px; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+  .board-root { transform-origin: 264px 264px; transform-box: view-box; transition: transform .45s cubic-bezier(.3,.7,.3,1); }
+
+  .live-info { display: grid; gap: 8px; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 26px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+  .running .dot { animation: pulse 1s ease-in-out infinite; background: var(--a); }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .rotate { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+
+  /* Match list */
+  .match-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .match-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); }
+  .match-item.current { background: var(--a-soft); border-radius: 6px; font-weight: 600; }
+  .match-item .who { display: inline-flex; align-items: center; gap: 6px; }
+  .chip { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  /* Controls */
+  .field-label { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 7px 4px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  select { width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+
+  .bot-picker { max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--bg); display: grid; gap: 6px; }
+  .bot-choice { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
+  .bot-choice input { accent-color: var(--ink); }
+
+  .row { display: flex; gap: 8px; }
+  .btn { flex: 1; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 10px; font: inherit; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+  .btn.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 7px; font-weight: 500; border: 1px solid var(--line); background: var(--bg); color: var(--muted); cursor: pointer; }
+  .btn-sm:hover { color: var(--ink); }
+
+  .progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+  .progress-bar { height: 100%; background: var(--a); width: 0; transition: width .2s; }
+  .note { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+  /* Compact bot summary box */
+  .bot-summary-box {
+    border: 1px solid var(--line); background: var(--bg); border-radius: 10px;
+    padding: 9px 12px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .bot-summary-box:hover { border-color: var(--ink); }
+  .bot-summary-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .bot-count-tag { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .bot-edit-link { font-size: 12px; font-weight: 600; color: var(--a); }
+  .bot-chips-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
+  .bot-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); font-weight: 500; }
+  .bot-chip.more { background: var(--line); color: var(--ink); font-weight: 600; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+  }
+  .modal-backdrop[hidden] { display: none !important; }
+  .modal-box {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); width: 100%; max-width: 520px;
+    max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+    animation: modalPop .2s ease-out;
+  }
+  @keyframes modalPop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .modal-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
+  .modal-close { border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .modal-close:hover { color: var(--ink); background: var(--bg); }
+  .modal-toolbar { padding: 10px 18px; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+  .modal-body { padding: 12px 18px; overflow-y: auto; display: grid; gap: 8px; max-height: 48vh; }
+  .bot-choice-card { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); cursor: pointer; transition: border-color .15s; }
+  .bot-choice-card:hover { border-color: var(--ink); }
+  .bot-choice-card input[type=checkbox] { margin-top: 3px; accent-color: var(--ink); width: 16px; height: 16px; cursor: pointer; }
+  .bot-choice-info { flex: 1; min-width: 0; }
+  .bot-choice-name { font-weight: 600; font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+  .bot-choice-desc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .modal-foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: flex-end; gap: 8px; background: var(--bg); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Wrongway</h1>
+    </div>
+    <div class="header-actions">
+      <nav class="nav-tabs" aria-label="Chế độ chơi">
+        <a class="nav-tab" href="/">Chơi với bot</a>
+        <a class="nav-tab" href="/arena.html">Bot vs bot</a>
+        <a class="nav-tab active" href="/tournament.html">Giải đấu</a>
+      </nav>
+      <button class="theme" id="theme" title="Đổi giao diện sáng/tối">◐</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <div class="main">
+      <!-- Bảng xếp hạng Standings -->
+      <section class="card">
+        <div class="head-row">
+          <h2>Bảng xếp hạng giải đấu</h2>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-sm" id="clear-table" title="Xóa kết quả giải đấu đã lưu">Xóa kết quả</button>
+            <button class="btn-sm" id="copy-table" title="Sao chép bảng kết quả dưới dạng Markdown">📋 Copy kết quả</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="standings">
+            <thead>
+              <tr>
+                <th>Hạng</th>
+                <th>Bot</th>
+                <th>Trận</th>
+                <th>W</th>
+                <th>D</th>
+                <th>L</th>
+                <th>Điểm</th>
+                <th>Tỉ lệ</th>
+                <th>TO</th>
+                <th>Inv</th>
+                <th>Err</th>
+                <th>MaxT</th>
+              </tr>
+            </thead>
+            <tbody id="standings-body">
+              <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px 0;">Chọn các bot và bấm "Bắt đầu giải đấu"</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note" style="margin-top:10px;">Thắng = 3 điểm, Hòa = 1 điểm, Thua = 0 điểm. Kết quả giải đấu tự động lưu trong trình duyệt.</div>
+      </section>
+
+      <!-- Live Match Board -->
+      <section class="card">
+        <div class="head-row">
+          <h2>Trận đang diễn ra</h2>
+          <button class="rotate" id="rotate" title="Xoay bàn cờ 90°">⟳ Xoay<span id="rotate-label"></span></button>
+        </div>
+        <div class="live-box">
+          <svg id="board" viewBox="0 0 528 528" aria-label="Bàn cờ 9x9"></svg>
+          <div class="live-info">
+            <div class="status" id="status">
+              <span class="dot" id="dot"></span>
+              <span id="status-text">Chưa bắt đầu</span>
+            </div>
+            <div id="status-sub" class="note">Các ván đấu sẽ được cập nhật trực tiếp tại đây.</div>
+            <div class="progress" id="progress" hidden><div class="progress-bar" id="progress-bar"></div></div>
+            <div id="progress-label" class="note" style="font-weight:600;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lịch sử các cặp đấu -->
+      <section class="card">
+        <div class="head-row">
+          <h2>Danh sách trận đấu</h2>
+          <span class="note" id="fixtures-count"></span>
+        </div>
+        <ul class="match-list" id="match-list">
+          <li style="color:var(--muted);padding:10px 0;">Chưa có lịch thi đấu.</li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- Cột cấu hình -->
+    <aside class="side">
+      <div class="card" style="display:grid;gap:12px;">
+        <h2>Cấu hình giải đấu</h2>
+        
+        <div class="field-label">Thể thức thi đấu</div>
+        <div class="seg" id="mode-seg">
+          <button data-v="round-robin" class="on">Vòng tròn</button>
+          <button data-v="vs-all">1 vs Tất cả</button>
+        </div>
+
+        <div id="vs-all-box" hidden>
+          <div class="field-label">Chọn bot tiêu điểm</div>
+          <select id="primary-bot"></select>
+        </div>
+
+        <!-- Bot tham gia: Danh sách rút gọn + Nút Pop-up -->
+        <div class="field-label">Bot tham gia giải đấu</div>
+        <div class="bot-summary-box" id="open-bot-modal" title="Bấm để tùy chỉnh bot tham gia">
+          <div class="bot-summary-top">
+            <span class="bot-count-tag" id="summary-count">Đang tải bot…</span>
+            <span class="bot-edit-link">⚙️ Tùy chỉnh</span>
+          </div>
+          <div class="bot-chips-wrap" id="summary-chips"></div>
+        </div>
+
+        <div class="field-label">Số seed mỗi cặp (1 seed = 2 ván đổi bên)</div>
+        <div class="seg" id="seed-seg">
+          <button data-v="1" class="on">1 seed (2 ván)</button>
+          <button data-v="2">2 seeds (4 ván)</button>
+          <button data-v="3">3 seeds (6 ván)</button>
+        </div>
+
+        <div class="field-label">Thời gian tối đa mỗi nước</div>
+        <div class="seg" id="limit-seg">
+          <button data-v="1" class="on">1 giây</button>
+          <button data-v="2">2 giây</button>
+        </div>
+
+        <div class="field-label">Tốc độ xem</div>
+        <div class="seg" id="speed-seg">
+          <button data-v="0" class="on">Tức thì (0ms)</button>
+          <button data-v="40">Nhanh</button>
+          <button data-v="250">Vừa</button>
+        </div>
+
+        <div class="row" style="margin-top:6px;">
+          <button class="btn primary" id="start">Bắt đầu giải đấu</button>
+          <button class="btn" id="stop" disabled>Dừng</button>
+        </div>
+
+        <div class="note">Mô phỏng round-robin theo <code>tools/tournament.py</code>: mỗi cặp đấu đổi bên đi trước/đi sau, bảo đảm công bằng.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Pop-up Modal chọn danh sách bot -->
+<div class="modal-backdrop" id="bot-modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Chọn bot tham gia giải đấu</h3>
+      <button class="modal-close" id="close-bot-modal">✕</button>
+    </div>
+    <div class="modal-toolbar">
+      <span id="modal-selected-info">Đang chọn: 0 bot</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn-sm" id="select-all">Tất cả</button>
+        <button class="btn-sm" id="deselect-all">Bỏ chọn</button>
+        <label class="btn-sm" style="display:inline-flex;align-items:center;cursor:pointer;" title="Tải thêm bot .py từ máy tính">
+          📁 Tải bot
+          <input type="file" id="tourn-bot-upload" accept=".py" multiple style="display:none">
+        </label>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-bot-list"></div>
+    <div class="modal-foot">
+      <button class="btn primary" id="confirm-bot-modal">Hoàn tất</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const S = 48, G = 12, U = S + G, NS = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id);
+  const svg = $("board");
+  let library = { bots: [] }, worker = null, running = false;
+  const codeCache = {};
+
+  const opts = { mode: "round-robin", seeds: 1, limit: 1, speed: 0 };
+
+  // ---------- Board SVG
+  const mk = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const boardRoot = mk("g", { class: "board-root" }, svg);
+  const layerBoard = mk("g", {}, boardRoot), layerWalls = mk("g", {}, boardRoot), layerPawns = mk("g", {}, boardRoot);
+  let turns = 0;
+  try { turns = (Number(localStorage.getItem("wrongway-tourn-rotation")) % 360 || 0) / 90; } catch (e) {}
+  function applyRotation() {
+    const deg = turns * 90;
+    boardRoot.style.transform = `rotate(${deg}deg)`;
+    svg.querySelectorAll(".pawn text").forEach(t => { t.style.transform = `rotate(${-deg}deg)`; });
+    $("rotate-label").textContent = deg % 360 ? (deg % 360) + "°" : "";
+  }
+  $("rotate").addEventListener("click", () => {
+    turns += 1;
+    try { localStorage.setItem("wrongway-tourn-rotation", String((turns * 90) % 360)); } catch (e) {}
+    applyRotation();
+  });
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++)
+    mk("rect", { x: c * U, y: r * U, width: S, height: S, rx: 7,
+                 class: "cell" + (r === 0 ? " goal-a" : r === 8 ? " goal-b" : "") }, layerBoard);
+  const pawns = [0, 1].map(p => {
+    const g = mk("g", { class: "pawn" }, layerPawns);
+    mk("circle", { r: 17, fill: p === 0 ? "var(--a)" : "var(--b)" }, g);
+    mk("text", {}, g).textContent = p === 0 ? "1" : "2";
+    return g;
+  });
+  let wallOwners = {};
+
+  function draw(state, newestKey) {
+    layerWalls.textContent = "";
+    for (const [o, list] of [["H", state.walls.horizontal], ["V", state.walls.vertical]]) {
+      for (const [r, c] of list) {
+        const k = o + r + "," + c;
+        const rect = o === "H" ? { x: c * U, y: r * U + S, width: 2 * S + G, height: G }
+                               : { x: c * U + S, y: r * U, width: G, height: 2 * S + G };
+        mk("rect", { ...rect, rx: 3, class: "wall " + (wallOwners[k] === 1 ? "b" : "a") + (k === newestKey ? " new" : "") }, layerWalls);
+      }
+    }
+    state.positions.forEach(([r, c], p) => {
+      pawns[p].style.transform = `translate(${c * U + S / 2}px, ${r * U + S / 2}px)`;
+    });
+  }
+  const INITIAL = { walls: { horizontal: [], vertical: [] }, positions: [[8, 4], [0, 4]] };
+  draw(INITIAL);
+  applyRotation();
+
+  // ---------- Helpers
+  async function getJSON(url) {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Lỗi nạp " + url);
+    return data;
+  }
+  // ---------- Helpers & Uploaded Bots
+  const uploadedBots = {};
+  const CUSTOM_KEY = "wrongway-custom-bots";
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY);
+    if (raw) Object.assign(uploadedBots, JSON.parse(raw));
+  } catch (e) {}
+  function saveCustomBots() {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(uploadedBots)); } catch (e) {}
+  }
+
+  async function getJSON(url) {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Lỗi nạp " + url);
+    return data;
+  }
+  async function source(id) {
+    if (id === "env" || id === "builtin:env") {
+      if (!codeCache["env"]) codeCache["env"] = (await getJSON("/api/bots?id=env")).code;
+      return codeCache["env"];
+    }
+    if (uploadedBots[id]) return uploadedBots[id].code;
+    const cleanId = id.startsWith("builtin:") || id.startsWith("uploaded:") ? id : "builtin:" + id;
+    if (uploadedBots[cleanId]) return uploadedBots[cleanId].code;
+    if (!codeCache[id]) codeCache[id] = (await getJSON("/api/bots?id=" + encodeURIComponent(cleanId))).code;
+    return codeCache[id];
+  }
+
+  // ---------- Segmented controls setup
+  function bindSeg(id, key, transform = Number) {
+    const seg = $(id);
+    seg.addEventListener("click", e => {
+      const btn = e.target.closest("button");
+      if (!btn || running) return;
+      seg.querySelectorAll("button").forEach(b => b.classList.remove("on"));
+      btn.classList.add("on");
+      opts[key] = transform ? transform(btn.dataset.v) : btn.dataset.v;
+      if (key === "mode") $("vs-all-box").hidden = opts.mode !== "vs-all";
+    });
+  }
+  bindSeg("mode-seg", "mode", String);
+  bindSeg("seed-seg", "seeds");
+  bindSeg("limit-seg", "limit");
+  bindSeg("speed-seg", "speed");
+
+  // ---------- Bot Selection & Modal
+  const selectedBots = new Set(["MSSV", "greedy", "wall_builder", "random_agent"]);
+
+  function allAvailableBots() {
+    const list = (library.bots || []).map(b => ({ id: b.id, name: b.name, desc: b.description || "", uploaded: false }));
+    Object.values(uploadedBots).forEach(b => {
+      list.push({ id: b.id, name: b.name, desc: b.description || "Bot tải lên từ máy", uploaded: true });
+    });
+    return list;
+  }
+
+  function renderBotSummary() {
+    const arr = Array.from(selectedBots);
+    const count = arr.length;
+    $("summary-count").textContent = `Đã chọn: ${count} bot`;
+    $("modal-selected-info").textContent = `${count} bot được chọn`;
+    const wrap = $("summary-chips");
+    wrap.textContent = "";
+    if (!count) {
+      wrap.innerHTML = `<span style="font-size:12px;color:var(--bad);">Chưa chọn bot nào (Bấm để chọn)</span>`;
+      return;
+    }
+    const maxShow = 3;
+    arr.slice(0, maxShow).forEach(name => {
+      const chip = document.createElement("span");
+      chip.className = "bot-chip";
+      chip.textContent = name;
+      wrap.appendChild(chip);
+    });
+    if (count > maxShow) {
+      const more = document.createElement("span");
+      more.className = "bot-chip more";
+      more.textContent = `+${count - maxShow} khác`;
+      wrap.appendChild(more);
+    }
+  }
+
+  function renderModalList() {
+    const container = $("modal-bot-list");
+    container.textContent = "";
+    const list = allAvailableBots();
+    const selPri = $("primary-bot");
+    selPri.textContent = "";
+
+    list.forEach(b => {
+      // Card checkbox trong Modal
+      const card = document.createElement("label");
+      card.className = "bot-choice-card";
+      const isChecked = selectedBots.has(b.name);
+      card.innerHTML = `
+        <input type="checkbox" value="${b.name}" ${isChecked ? "checked" : ""}>
+        <div class="bot-choice-info">
+          <div class="bot-choice-name">
+            ${b.uploaded ? "📁 " : ""}${b.name}
+            ${b.uploaded ? '<span class="chip" style="background:var(--a);width:6px;height:6px;" title="Tải lên"></span>' : ""}
+          </div>
+          <div class="bot-choice-desc">${b.desc}</div>
+        </div>
+      `;
+      card.querySelector("input").addEventListener("change", e => {
+        if (e.target.checked) selectedBots.add(b.name);
+        else selectedBots.delete(b.name);
+        renderBotSummary();
+      });
+      container.appendChild(card);
+
+      // Thêm vào dropdown 1 vs Tất cả
+      const opt = document.createElement("option");
+      opt.value = b.name; opt.textContent = b.name;
+      selPri.appendChild(opt);
+    });
+    renderBotSummary();
+  }
+
+  function openModal() {
+    if (running) return;
+    $("bot-modal").hidden = false;
+  }
+  function closeModal() {
+    $("bot-modal").hidden = true;
+    renderBotSummary();
+  }
+  $("open-bot-modal").addEventListener("click", openModal);
+  $("close-bot-modal").addEventListener("click", closeModal);
+  $("confirm-bot-modal").addEventListener("click", closeModal);
+  $("bot-modal").addEventListener("click", e => {
+    if (e.target === $("bot-modal")) closeModal();
+  });
+
+  $("select-all").addEventListener("click", () => {
+    allAvailableBots().forEach(b => selectedBots.add(b.name));
+    $("modal-bot-list").querySelectorAll("input").forEach(i => i.checked = true);
+    renderBotSummary();
+  });
+  $("deselect-all").addEventListener("click", () => {
+    selectedBots.clear();
+    $("modal-bot-list").querySelectorAll("input").forEach(i => i.checked = false);
+    renderBotSummary();
+  });
+
+  // Tải bot thêm vào giải đấu
+  $("tourn-bot-upload").addEventListener("change", async e => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    for (const f of files) {
+      try {
+        const text = await f.text();
+        if (!text.includes("choose_action")) {
+          alert("File " + f.name + " thiếu hàm choose_action(observation)");
+          continue;
+        }
+        const stem = f.name.replace(/\.py$/i, "");
+        const id = "uploaded:" + stem;
+        uploadedBots[id] = { id, name: stem, code: text, description: "Bot tải lên từ máy bạn (chạy WebAssembly/Pyodide)" };
+        codeCache[id] = text;
+        selectedBots.add(stem);
+      } catch (err) {
+        alert("Lỗi đọc file: " + err.message);
+      }
+    }
+    saveCustomBots();
+    renderModalList();
+  });
+
+  // ---------- Load Bots ban đầu
+  async function loadLibrary() {
+    try { library = await getJSON("/api/bots"); } catch (e) {}
+    renderModalList();
+    restoreTournamentState();
+  }
+
+  // ---------- Standings state & render
+  let standings = {}; // name -> { W, D, L, pts, to, inv, err, maxT, games }
+  let savedFixtures = [];
+
+  function renderStandings() {
+    const tb = $("standings-body");
+    const names = Object.keys(standings);
+    if (!names.length) {
+      tb.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px 0;">Chưa có dữ liệu</td></tr>';
+      return;
+    }
+    const sorted = names.slice().sort((a, b) => {
+      const ra = standings[a], rb = standings[b];
+      if (rb.pts !== ra.pts) return rb.pts - ra.pts;
+      if (rb.W !== ra.W) return rb.W - ra.W;
+      return (ra.to + ra.inv + ra.err) - (rb.to + rb.inv + rb.err);
+    });
+
+    tb.textContent = "";
+    sorted.forEach((name, idx) => {
+      const r = standings[name];
+      const games = r.W + r.D + r.L;
+      const ratio = games ? ((r.pts / (3 * games)) * 100).toFixed(1) + "%" : "0.0%";
+      const tr = document.createElement("tr");
+      if (idx === 0) tr.className = "top-1";
+
+      const badgeCls = idx === 0 ? "gold" : idx === 1 ? "silver" : idx === 2 ? "bronze" : "";
+      tr.innerHTML = `
+        <td><span class="rank-badge ${badgeCls}">${idx + 1}</span></td>
+        <td><strong>${name}</strong></td>
+        <td>${games}</td>
+        <td>${r.W}</td>
+        <td>${r.D}</td>
+        <td>${r.L}</td>
+        <td class="pts">${r.pts}</td>
+        <td>${ratio}</td>
+        <td>${r.to}</td>
+        <td>${r.inv}</td>
+        <td>${r.err}</td>
+        <td>${r.maxT.toFixed(2)}s</td>
+      `;
+      tb.appendChild(tr);
+    });
+  }
+
+  // ---------- Lưu & Phục hồi kết quả giải đấu (LocalStorage)
+  const TOURN_SAVE_KEY = "wrongway-tournament-results";
+
+  function saveTournamentState(isDone = false) {
+    try {
+      const data = {
+        standings,
+        fixtures: savedFixtures,
+        isDone,
+        updatedAt: Date.now()
+      };
+      localStorage.setItem(TOURN_SAVE_KEY, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function restoreTournamentState() {
+    try {
+      const raw = localStorage.getItem(TOURN_SAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.standings && Object.keys(data.standings).length) {
+        standings = data.standings;
+        renderStandings();
+        if (data.fixtures && data.fixtures.length) {
+          savedFixtures = data.fixtures;
+          $("fixtures-count").textContent = `Tổng cộng: ${savedFixtures.length} ván`;
+          const mList = $("match-list");
+          mList.textContent = "";
+          savedFixtures.forEach((f, i) => {
+            const li = document.createElement("li");
+            li.className = "match-item";
+            li.innerHTML = `
+              <span class="who">
+                <span class="chip" style="background:var(--a)"></span>${f.p0} vs
+                <span class="chip" style="background:var(--b)"></span>${f.p1}
+                <span class="note">(seed ${f.seed})</span>
+              </span>
+              <span class="note">${f.resultHtml || f.resultText || "Đã đấu"}</span>
+            `;
+            mList.appendChild(li);
+          });
+        }
+        $("progress").hidden = false;
+        $("progress-bar").style.width = "100%";
+        $("progress-label").textContent = data.isDone
+          ? `Kết quả giải đấu đã lưu (${savedFixtures.length} ván)`
+          : `Đã khôi phục kết quả đã lưu`;
+        setStatus("Kết quả giải đấu gần nhất", "Bấm 'Bắt đầu giải đấu' nếu muốn đấu lượt mới");
+      }
+    } catch (e) {}
+  }
+
+  $("clear-table").addEventListener("click", () => {
+    if (running) return;
+    if (!confirm("Xóa toàn bộ kết quả giải đấu đã lưu?")) return;
+    standings = {};
+    savedFixtures = [];
+    try { localStorage.removeItem(TOURN_SAVE_KEY); } catch (e) {}
+    renderStandings();
+    $("match-list").innerHTML = '<li style="color:var(--muted);padding:10px 0;">Chưa có lịch thi đấu.</li>';
+    $("fixtures-count").textContent = "";
+    $("progress").hidden = true;
+    setStatus("Chưa bắt đầu");
+  });
+
+  // Copy bảng xếp hạng dạng Markdown
+  $("copy-table").addEventListener("click", () => {
+    const names = Object.keys(standings);
+    if (!names.length) { alert("Chưa có kết quả giải đấu!"); return; }
+    const sorted = names.slice().sort((a, b) => {
+      const ra = standings[a], rb = standings[b];
+      if (rb.pts !== ra.pts) return rb.pts - ra.pts;
+      return rb.W - ra.W;
+    });
+    let md = "| Hạng | Bot | Trận | W | D | L | Điểm | Tỉ lệ | TO | Inv | Err | MaxT |\n";
+    md += "| ---: | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n";
+    sorted.forEach((name, idx) => {
+      const r = standings[name];
+      const games = r.W + r.D + r.L;
+      const ratio = games ? ((r.pts / (3 * games)) * 100).toFixed(1) + "%" : "0.0%";
+      md += `| ${idx + 1} | ${name} | ${games} | ${r.W} | ${r.D} | ${r.L} | ${r.pts} | ${ratio} | ${r.to} | ${r.inv} | ${r.err} | ${r.maxT.toFixed(2)}s |\n`;
+    });
+    navigator.clipboard.writeText(md).then(() => alert("Đã sao chép bảng xếp hạng Markdown vào clipboard!"));
+  });
+
+  // Cảnh báo nếu chuyển tab hoặc tải lại khi giải đấu đang chạy
+  window.addEventListener("beforeunload", e => {
+    if (running) {
+      e.preventDefault();
+      e.returnValue = "Giải đấu đang diễn ra. Nếu rời trang, tiến trình sẽ bị ngắt.";
+    }
+  });
+
+  // ---------- Worker communication
+  function ask(w, message, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      w.onmessage = e => { clearTimeout(timer); resolve(e.data); };
+      w.onerror = e => { clearTimeout(timer); reject(new Error(e.message || "Worker lỗi")); };
+      w.postMessage(message);
+    });
+  }
+
+  function setStatus(text, sub = "", mode = "") {
+    $("status-text").textContent = text;
+    $("status-sub").textContent = sub;
+    $("status").className = "status " + (mode === "run" ? "running" : "");
+    $("dot").style.background = mode === "run" ? "var(--a)" : "var(--muted)";
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // ---------- Main Tournament Runner
+  $("start").addEventListener("click", async () => {
+    if (running) return;
+
+    const checked = Array.from(selectedBots);
+    if (checked.length < 2) {
+      alert("Vui lòng chọn ít nhất 2 bot để bắt đầu giải đấu!");
+      openModal();
+      return;
+    }
+
+    let pairs = [];
+    if (opts.mode === "vs-all") {
+      const primary = $("primary-bot").value || checked[0];
+      const others = checked.filter(n => n !== primary);
+      if (!others.length) { alert("Chế độ 1 vs Tất cả cần ít nhất 1 đối thủ khác!"); return; }
+      others.forEach(o => pairs.push([primary, o]));
+      if (!checked.includes(primary)) checked.push(primary);
+    } else {
+      for (let i = 0; i < checked.length; i++) {
+        for (let j = i + 1; j < checked.length; j++) {
+          pairs.push([checked[i], checked[j]]);
+        }
+      }
+    }
+
+    standings = {};
+    checked.forEach(name => {
+      standings[name] = { W: 0, D: 0, L: 0, pts: 0, to: 0, inv: 0, err: 0, maxT: 0 };
+    });
+    renderStandings();
+
+    const fixtures = [];
+    pairs.forEach(([a, b]) => {
+      for (let s = 0; s < opts.seeds; s++) {
+        fixtures.push({ p0: a, p1: b, seed: s, resultText: "", resultHtml: "" });
+        fixtures.push({ p0: b, p1: a, seed: s, resultText: "", resultHtml: "" });
+      }
+    });
+
+    savedFixtures = fixtures;
+    const totalGames = fixtures.length;
+    $("fixtures-count").textContent = `Tổng cộng: ${totalGames} ván`;
+
+    const mList = $("match-list");
+    mList.textContent = "";
+    fixtures.forEach((f, i) => {
+      const li = document.createElement("li");
+      li.className = "match-item";
+      li.id = "fix-" + i;
+      li.innerHTML = `
+        <span class="who">
+          <span class="chip" style="background:var(--a)"></span>${f.p0} vs
+          <span class="chip" style="background:var(--b)"></span>${f.p1}
+          <span class="note">(seed ${f.seed})</span>
+        </span>
+        <span class="note" id="res-${i}">Chờ đấu</span>
+      `;
+      mList.appendChild(li);
+    });
+
+    running = true;
+    $("start").disabled = true;
+    $("stop").disabled = false;
+    $("progress").hidden = false;
+
+    let envCode;
+    try {
+      envCode = await source("env");
+    } catch (e) {
+      alert("Không tải được environment.py: " + e.message);
+      running = false;
+      $("start").disabled = false; $("stop").disabled = true;
+      return;
+    }
+
+    const tStart = Date.now();
+
+    for (let idx = 0; idx < totalGames; idx++) {
+      if (!running) break;
+      const fix = fixtures[idx];
+      const { p0, p1, seed } = fix;
+
+      const pct = Math.round((idx / totalGames) * 100);
+      $("progress-bar").style.width = pct + "%";
+      $("progress-label").textContent = `Tiến độ: ${idx}/${totalGames} ván (${pct}%)`;
+
+      const liCur = $("fix-" + idx);
+      if (liCur) {
+        liCur.classList.add("current");
+        liCur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+      $(`res-${idx}`).textContent = "Đang đấu…";
+
+      setStatus(`Ván ${idx + 1}/${totalGames}: ${p0} vs ${p1}`, `Seed ${seed}`, "run");
+
+      let c0, c1;
+      try {
+        c0 = await source(p0);
+        c1 = await source(p1);
+      } catch (err) {
+        $(`res-${idx}`).textContent = "Lỗi nạp bot";
+        continue;
+      }
+
+      if (worker) { worker.terminate(); worker = null; }
+      worker = new Worker("/match-worker.js");
+
+      try {
+        const init = await ask(worker, { type: "init", env: envCode, codes: [c0, c1], maxTurns: 500, seed }, 60000);
+        if (init.type !== "ready") throw new Error(init.message || "Không thể khởi tạo trận đấu");
+
+        let state = init.state;
+        wallOwners = {};
+        draw(state);
+
+        while (running && !state.done) {
+          const curP = state.current_player;
+          const who = curP === 0 ? p0 : p1;
+          const reply = await ask(worker, { type: "step", limit: opts.limit }, 15000);
+          if (reply.type !== "step") break;
+
+          const rec = reply.record;
+          const r = standings[who];
+          if (rec.status === "timeout") r.to++;
+          else if (rec.status === "invalid") r.inv++;
+          else if (rec.status === "error") r.err++;
+          r.maxT = Math.max(r.maxT, rec.elapsed);
+
+          let newest = null;
+          if (rec.status === "ok" && rec.action) {
+            if (rec.action.type === "wall") {
+              newest = rec.action.orientation + rec.action.row + "," + rec.action.col;
+              wallOwners[newest] = curP;
+            }
+          }
+          state = rec.state;
+          draw(state, newest);
+
+          if (opts.speed > 0) await sleep(opts.speed);
+        }
+
+        if (!running) break;
+
+        const w = state.winner;
+        if (w === null) {
+          standings[p0].D++; standings[p0].pts += 1;
+          standings[p1].D++; standings[p1].pts += 1;
+          fix.resultText = `Hòa (${state.turn} lượt)`;
+          fix.resultHtml = fix.resultText;
+          $(`res-${idx}`).textContent = fix.resultText;
+        } else if (w === 0) {
+          standings[p0].W++; standings[p0].pts += 3;
+          standings[p1].L++;
+          fix.resultText = `${p0} thắng (${state.turn} lượt)`;
+          fix.resultHtml = `<strong style="color:var(--a)">${p0} thắng</strong> (${state.turn} lượt)`;
+          $(`res-${idx}`).innerHTML = fix.resultHtml;
+        } else {
+          standings[p1].W++; standings[p1].pts += 3;
+          standings[p0].L++;
+          fix.resultText = `${p1} thắng (${state.turn} lượt)`;
+          fix.resultHtml = `<strong style="color:var(--b)">${p1} thắng</strong> (${state.turn} lượt)`;
+          $(`res-${idx}`).innerHTML = fix.resultHtml;
+        }
+      } catch (err) {
+        fix.resultText = "Lỗi: " + err.message;
+        $(`res-${idx}`).textContent = fix.resultText;
+      } finally {
+        if (liCur) liCur.classList.remove("current");
+        renderStandings();
+        saveTournamentState(false);
+      }
+    }
+
+    if (worker) { worker.terminate(); worker = null; }
+    running = false;
+    $("start").disabled = false;
+    $("stop").disabled = true;
+
+    const elapsedTotal = ((Date.now() - tStart) / 1000).toFixed(1);
+    $("progress-bar").style.width = "100%";
+    $("progress-label").textContent = `Hoàn tất giải đấu trong ${elapsedTotal}s! (Đã lưu)`;
+    setStatus("Giải đấu kết thúc!", `Tổng thời gian: ${elapsedTotal}s`);
+    saveTournamentState(true);
+  });
+
+  $("stop").addEventListener("click", () => {
+    if (!running) return;
+    running = false;
+    if (worker) { worker.terminate(); worker = null; }
+    $("start").disabled = false;
+    $("stop").disabled = true;
+    setStatus("Đã dừng giải đấu.");
+    saveTournamentState(false);
+  });
+
+  // ---------- Theme Switcher
+  $("theme").addEventListener("click", () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("wrongway-theme", root.dataset.theme); } catch (e) {}
+  });
+  try {
+    const t = localStorage.getItem("wrongway-theme");
+    if (t) document.documentElement.dataset.theme = t;
+  } catch (e) {}
+
+  loadLibrary();
+})();
+</script>
+</body>
+</html>

@@ -60,6 +60,8 @@ const boot = (async () => {
   pyodide.setStderr({ batched: () => {} });
 })();
 
+let currentBotCode = null;
+
 onmessage = async (event) => {
   const msg = event.data;
   try {
@@ -82,6 +84,42 @@ onmessage = async (event) => {
       postMessage({ type: "ready", state });
     } else if (msg.type === "step") {
       postMessage({ type: "step", record: JSON.parse(pyodide.globals.get("step")(msg.limit)) });
+    } else if (msg.type === "choose") {
+      try { pyodide.FS.mkdirTree("/bots"); } catch (e) {}
+      if (msg.code !== currentBotCode) {
+        currentBotCode = msg.code;
+        pyodide.FS.writeFile("/bots/uploaded.py", msg.code);
+        pyodide.runPython(`
+import importlib.util, json, sys, time, traceback
+if "/arena" not in sys.path:
+    sys.path.insert(0, "/arena")
+if "/bots" not in sys.path:
+    sys.path.insert(0, "/bots")
+
+spec = importlib.util.spec_from_file_location("uploaded_bot", "/bots/uploaded.py")
+uploaded_mod = importlib.util.module_from_spec(spec)
+sys.modules["uploaded_bot"] = uploaded_mod
+spec.loader.exec_module(uploaded_mod)
+if hasattr(uploaded_mod, "MAX_DEPTH"):
+    # Đặt độ sâu vừa phải cho môi trường WebAssembly để tránh treo
+    uploaded_mod.MAX_DEPTH = min(getattr(uploaded_mod, "MAX_DEPTH", 4) or 4, 4)
+
+def _run_uploaded_action(obs_json):
+    obs = json.loads(obs_json)
+    t0 = time.perf_counter()
+    err = None
+    try:
+        act = uploaded_mod.choose_action(obs)
+        act = json.loads(json.dumps(act))
+    except Exception:
+        err = traceback.format_exc(limit=4)
+        act = {"type": "pass"}
+    elapsed = round(time.perf_counter() - t0, 3)
+    return json.dumps({"action": act, "elapsed": elapsed, "error": err})
+`);
+      }
+      const res = JSON.parse(pyodide.globals.get("_run_uploaded_action")(JSON.stringify(msg.obs)));
+      postMessage({ type: "choose", ...res });
     }
   } catch (err) {
     postMessage({ type: "error", message: String(err.message || err) });

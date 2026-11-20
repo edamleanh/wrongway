@@ -42,15 +42,67 @@
   body {
     background: var(--bg); color: var(--ink);
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: 24px 16px 40px;
+    padding: 0 16px 40px;
   }
-  .wrap { max-width: 1040px; margin: 0 auto; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
-  h1 span { color: var(--muted); font-weight: 500; }
-  .hint { color: var(--muted); font-size: 13px; }
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
-  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -16px 20px;
+    padding: 10px 16px;
+    backdrop-filter: blur(8px);
+  }
+  .topbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .nav-tabs {
+    display: inline-flex;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .nav-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .nav-tab:hover { color: var(--ink); }
+  .nav-tab.active {
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  @media (max-width: 720px) {
+    .topbar-inner { gap: 10px; }
+    .nav-tabs { width: 100%; order: 3; }
+    .nav-tab { flex: 1; justify-content: center; text-align: center; padding: 7px 8px; font-size: 13.5px; }
+  }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
   .board-card { padding: 16px; }
   .status {
@@ -99,6 +151,16 @@
   .big small { display: block; font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 3px; }
   .controls { padding: 14px; display: grid; gap: 12px; }
   .controls h2, .log h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 600; }
+  .field-label { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .btn-upload {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    border-radius: 9px; padding: 7px 11px; font: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: border-color .15s;
+  }
+  .btn-upload:hover { border-color: var(--ink); }
+  select { width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .note { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
   .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
   .seg button { border: 0; background: transparent; color: var(--muted); padding: 7px 6px; border-radius: 7px; font: inherit; font-size: 13.5px; cursor: pointer; }
   .seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
@@ -123,16 +185,23 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Wrongway <span>· bạn đấu với bot</span></h1>
-    <div class="row" style="align-items:center">
-      <span class="hint">Bấm ô sáng để đi · rê chuột vào khe giữa các ô để đặt tường</span>
-      <a class="theme" href="/arena.html" style="text-decoration:none">Đấu bot vs bot →</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Wrongway</h1>
+    </div>
+    <div class="header-actions">
+      <nav class="nav-tabs" aria-label="Chế độ chơi">
+        <a class="nav-tab active" href="/">Chơi với bot</a>
+        <a class="nav-tab" href="/arena.html">Bot vs bot</a>
+        <a class="nav-tab" href="/tournament.html">Giải đấu</a>
+      </nav>
       <button class="theme" id="theme" title="Đổi giao diện sáng/tối">◐</button>
     </div>
-  </header>
+  </div>
+</header>
 
+<div class="wrap">
   <div class="layout">
     <section class="card board-card">
       <div class="status" id="status"><span class="dot"></span><span id="status-text">Đang tải…</span><span class="err" id="err"></span>
@@ -156,11 +225,23 @@
       </div>
 
       <div class="card controls">
-        <h2>Ván mới</h2>
+        <h2>Cài đặt trận đấu</h2>
+        <div class="field-label">Đối thủ bot</div>
+        <div class="row" style="gap:8px;align-items:center;">
+          <select id="bot-select" style="flex:1"></select>
+          <label class="btn-upload" title="Tải bot .py tạm thời từ máy của bạn">
+            📁 Tải bot
+            <input type="file" id="bot-file" accept=".py" style="display:none">
+          </label>
+        </div>
+        <div class="note" id="bot-desc" style="min-height:16px;"></div>
+
+        <div class="field-label">Bên đi trước</div>
         <div class="seg" id="side-seg">
           <button data-v="0" class="on">Bạn đi trước</button>
           <button data-v="1">Bot đi trước</button>
         </div>
+        <div class="field-label" id="level-label">Độ khó (cho bot máy chủ)</div>
         <div class="seg" id="level-seg">
           <button data-v="easy">Dễ</button>
           <button data-v="medium">Vừa</button>
@@ -186,12 +267,10 @@
   const S = 48, G = 12, U = S + G, NS = "http://www.w3.org/2000/svg";
   const svg = document.getElementById("board");
   let state = null, busy = false, hover = null, flip = false, lastWallKey = null;
-  // Lớp cố định: chỉ lớp ô/tường/vùng bắt chuột được vẽ lại; quân và bản xem trước giữ nguyên
-  // để quân trượt mượt và rê chuột không phải vẽ lại cả bàn.
+
   const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v); return n; };
-  // Mọi lớp nằm trong boardRoot; xoay bàn cờ = xoay boardRoot (chỉ đổi hướng nhìn,
-  // quân/màu/tường của bạn vẫn là của bạn, luật và tọa độ không đổi).
+
   const boardRoot = svg.appendChild(mk("g", { class: "board-root" }));
   const layerBoard = boardRoot.appendChild(mk("g"));
   const layerWalls = boardRoot.appendChild(mk("g"));
@@ -204,9 +283,9 @@
     g.appendChild(mk("text", { class: "label" }));
     return g;
   });
-  let rotation = 0;                                   // 0, 90, 180, 270 độ
+  let rotation = 0;
   try { rotation = Number(localStorage.getItem("wrongway-rotation")) % 360 || 0; } catch (e) {}
-  let turns = rotation / 90;                          // số lần xoay (tăng mãi để luôn xoay cùng chiều)
+  let turns = rotation / 90;
   function applyRotation() {
     const deg = turns * 90;
     boardRoot.style.transform = `rotate(${deg}deg)`;
@@ -222,6 +301,116 @@
   svg.addEventListener("mouseleave", () => { hover = null; updatePreview(); });
   const choice = { human: 0, level: "hard" };
 
+  // ---------- Quản lý Bot
+  let library = { bots: [] };
+  const uploadedBots = {}; // name -> code
+  let selectedBot = "MSSV";
+  let isUploaded = false;
+
+  let pyWorker = null;
+  function getPyWorker() {
+    if (!pyWorker) pyWorker = new Worker("/match-worker.js");
+    return pyWorker;
+  }
+  function askWorker(w, message, timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Worker quá giờ")), timeoutMs);
+      w.onmessage = e => { clearTimeout(timer); resolve(e.data); };
+      w.onerror = e => { clearTimeout(timer); reject(new Error(e.message || "Worker lỗi")); };
+      w.postMessage(message);
+    });
+  }
+
+  function updateBotSelect(pickValue) {
+    const s = document.getElementById("bot-select");
+    const prev = pickValue || s.value || "builtin:MSSV";
+    s.textContent = "";
+
+    // Bot từ submissions/
+    if (library.bots && library.bots.length) {
+      const grpBuiltin = document.createElement("optgroup");
+      grpBuiltin.label = "Bot trong submissions/";
+      library.bots.forEach(b => {
+        const o = document.createElement("option");
+        o.value = "builtin:" + b.name;
+        o.textContent = b.name;
+        o.dataset.desc = b.description || "";
+        grpBuiltin.appendChild(o);
+      });
+      s.appendChild(grpBuiltin);
+    }
+
+    // Bot người dùng tải lên
+    const upNames = Object.keys(uploadedBots);
+    if (upNames.length) {
+      const grpUp = document.createElement("optgroup");
+      grpUp.label = "Bot tải lên (chạy bằng Pyodide)";
+      upNames.forEach(n => {
+        const o = document.createElement("option");
+        o.value = "uploaded:" + n;
+        o.textContent = "📁 " + n + ".py";
+        o.dataset.desc = "Bot tải lên tạm thời: chạy an toàn trong trình duyệt (WebAssembly sandbox)";
+        grpUp.appendChild(o);
+      });
+      s.appendChild(grpUp);
+    }
+
+    s.value = prev;
+    if (!s.value && s.options.length) s.selectedIndex = 0;
+    onBotChange();
+  }
+
+  function onBotChange() {
+    const s = document.getElementById("bot-select");
+    const val = s.value || "builtin:MSSV";
+    if (val.startsWith("uploaded:")) {
+      isUploaded = true;
+      selectedBot = val.replace("uploaded:", "");
+      document.getElementById("bot-desc").textContent = "Bot tải lên tạm thời: chạy an toàn trong phiên chơi (không lưu trên server)";
+      document.getElementById("level-label").style.display = "none";
+      document.getElementById("level-seg").style.display = "none";
+    } else {
+      isUploaded = false;
+      selectedBot = val.replace("builtin:", "");
+      const opt = s.selectedOptions[0];
+      document.getElementById("bot-desc").textContent = opt ? opt.dataset.desc || "" : "";
+      document.getElementById("level-label").style.display = "block";
+      document.getElementById("level-seg").style.display = "grid";
+    }
+    game.botName = selectedBot;
+    document.getElementById("bot-name").textContent = "Bot (" + selectedBot + ")";
+  }
+
+  document.getElementById("bot-select").addEventListener("change", onBotChange);
+
+  document.getElementById("bot-file").addEventListener("change", async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      if (!text.includes("choose_action")) {
+        alert("File Python không hợp lệ: cần có hàm choose_action(observation)");
+        return;
+      }
+      const name = file.name.replace(/\.py$/i, "");
+      uploadedBots[name] = text;
+      updateBotSelect("uploaded:" + name);
+      newGame();
+    } catch (err) {
+      alert("Lỗi đọc file: " + err.message);
+    }
+  });
+
+  async function loadLibrary() {
+    try {
+      const res = await fetch("/api/bots");
+      if (res.ok) {
+        library = await res.json();
+        updateBotSelect();
+      }
+    } catch (e) {}
+  }
+
   // ---------- tiện ích
   const el = (tag, attrs = {}, parent = svg) => {
     const n = document.createElementNS(NS, tag);
@@ -229,8 +418,8 @@
     parent && parent.appendChild(n);
     return n;
   };
-  const dr = r => flip ? 8 - r : r;            // hàng hiển thị của ô
-  const dw = r => flip ? 7 - r : r;            // hàng hiển thị của neo tường
+  const dr = r => flip ? 8 - r : r;
+  const dw = r => flip ? 7 - r : r;
   const key = (o, r, c) => o + r + "," + c;
   const fmtAction = a => {
     if (!a) return "—";
@@ -239,10 +428,8 @@
     return "bỏ lượt";
   };
 
-  // Server không lưu gì: trình duyệt giữ trạng thái ván, nhật ký và lịch sử (để đi lại),
-  // gửi kèm trạng thái mỗi lần gọi /api/move.
   const game = { state: null, view: null, human: 0, level: "hard", log: [], history: [],
-                 botInfo: null, botName: "MSSV" };
+                 botInfo: null, botName: "MSSV", observation: null };
 
   async function move(body) {
     let res, data;
@@ -267,7 +454,7 @@
     };
   }
 
-  // ---------- vẽ
+  // ---------- vẽ bàn cờ
   function wallRect(o, r, c) {
     const R = dw(r);
     return o === "H"
@@ -287,7 +474,6 @@
     const legal = new Set(myTurn ? state.legal_moves.map(m => m[0] + "," + m[1]) : []);
     legalWalls = new Set(state.legal_walls.map(w => key(w.orientation, w.row, w.col)));
 
-    // ô
     for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
       let cls = "cell";
       if (r === state.goal_rows[you]) cls += " goal-you";
@@ -300,7 +486,6 @@
     if (myTurn) for (const m of state.legal_moves)
       el("circle", { cx: m[1] * U + S / 2, cy: dr(m[0]) * U + S / 2, r: 6, class: "legal-dot" }, layerBoard);
 
-    // khung đánh dấu ô bot vừa rời đi
     const last = state.log[state.log.length - 1];
     if (last && last.player === bot && last.action && last.action.type === "move" && prevPositions) {
       const prev = prevPositions[bot];
@@ -308,7 +493,6 @@
                    class: "last", stroke: "var(--bot)" }, layerBoard);
     }
 
-    // tường (màu theo người đặt; tường mới nhất hiện dần)
     const newest = state.wall_owners.length ? state.wall_owners[state.wall_owners.length - 1] : null;
     const newestKey = newest ? key(newest.o, newest.r, newest.c) : null;
     for (const w of state.wall_owners) {
@@ -319,7 +503,6 @@
     }
     lastWallKey = newestKey;
 
-    // quân (phần tử cố định -> trượt mượt)
     for (const p of [0, 1]) {
       const [r, c] = state.positions[p];
       const g = pawnEls[p];
@@ -330,13 +513,12 @@
       t.style.fontSize = p === you ? "15px" : "12px";
     }
 
-    // vùng bắt chuột cho tường (khe giữa các ô)
     if (myTurn && state.walls_remaining[you] > 0) {
-      for (let g = 0; g < 8; g++) for (let c = 0; c < 9; c++) {         // khe ngang
+      for (let g = 0; g < 8; g++) for (let c = 0; c < 9; c++) {
         const z = el("rect", { x: c * U, y: g * U + S, width: S, height: G, class: "zone" }, layerZones);
         bindZone(z, { o: "H", r: flip ? 7 - g : g, c: Math.min(c, 7) });
       }
-      for (let d = 0; d < 9; d++) for (let c = 0; c < 8; c++) {         // khe dọc
+      for (let d = 0; d < 9; d++) for (let c = 0; c < 8; c++) {
         const z = el("rect", { x: c * U + S, y: d * U, width: G, height: S, class: "zone" }, layerZones);
         const top = Math.min(d, 7);
         bindZone(z, { o: "V", r: flip ? 7 - top : top, c });
@@ -419,7 +601,7 @@
     st.classList.toggle("thinking", busy);
     if (state.done) { txt.textContent = "Ván đấu kết thúc"; dot.style.background = "var(--muted)"; }
     else if (state.current_player === you) { txt.textContent = "Lượt của bạn"; dot.style.background = "var(--you)"; }
-    else { txt.textContent = "Bot đang nghĩ…"; dot.style.background = "var(--bot)"; }
+    else { txt.textContent = "Bot (" + game.botName + ") đang nghĩ…"; dot.style.background = "var(--bot)"; }
     document.getElementById("err").textContent = error || "";
   }
 
@@ -429,6 +611,7 @@
     if (data) {
       game.state = data.state; game.view = data.view;
       if (data.bot_name) game.botName = data.bot_name;
+      if (data.observation) game.observation = data.observation;
       if (data.event) {
         game.log.push(data.event);
         if (data.event.player !== game.human) game.botInfo = { time: data.event.time, depth: data.event.depth };
@@ -441,10 +624,48 @@
   function fail(err) { busy = false; render(); setStatus(err.message); }
 
   async function botTurn() {
-    if (state.done || state.current_player === state.human) return;
+    if (!state || state.done || state.current_player === state.human) return;
     busy = true; render();
     try {
-      const data = await move({ op: "bot", state: game.state, human: game.human, level: game.level });
+      let data;
+      if (isUploaded) {
+        setStatus();
+        const code = uploadedBots[selectedBot];
+        let ranOnServer = false;
+        try {
+          // 1. Thử gửi bot_code để server chạy bằng Python nguyên bản (cực nhanh, không lag, không cần tải WebAssembly)
+          data = await move({
+            op: "bot", state: game.state, human: game.human,
+            bot_code: code, bot_name: selectedBot, level: game.level
+          });
+          ranOnServer = true;
+        } catch (serverErr) {
+          // 2. Dự phòng: nếu server không hỗ trợ bot_code, chạy bằng Pyodide Web Worker trên trình duyệt
+          console.warn("Server không chạy được bot_code, chuyển sang Web Worker Pyodide:", serverErr);
+        }
+
+        if (!ranOnServer) {
+          const w = getPyWorker();
+          const obs = game.observation || {
+            board_size: 9, player_id: state.current_player, current_player: state.current_player,
+            turn: state.turn, max_turns: state.max_turns,
+            you: { position: state.positions[state.current_player], goal_row: state.goal_rows[state.current_player], walls_remaining: state.walls_remaining[state.current_player] },
+            opponent: { position: state.positions[state.human], goal_row: state.goal_rows[state.human], walls_remaining: state.walls_remaining[state.human] },
+            walls: state.walls, legal_moves: state.legal_moves, legal_walls: state.legal_walls,
+            distances: state.distances ? state.distances[state.current_player] : [], done: state.done, winner: state.winner
+          };
+          const reply = await askWorker(w, { type: "choose", code, obs });
+          if (reply.error) {
+            console.error("Lỗi bot trong Pyodide:", reply.error);
+          }
+          data = await move({
+            op: "action", state: game.state, human: game.human, player: 1 - game.human,
+            action: reply.action || { type: "pass" }, elapsed: reply.elapsed, bot_name: selectedBot
+          });
+        }
+      } else {
+        data = await move({ op: "bot", state: game.state, human: game.human, bot: selectedBot, level: game.level });
+      }
       busy = false; apply(data);
     } catch (e) { fail(e); }
   }
@@ -453,8 +674,11 @@
     if (busy || !state || state.done || state.current_player !== state.human) return;
     busy = true; render();
     try {
-      const data = await move({ op: "action", state: game.state, human: game.human, action });
-      game.history.push({ state: game.state, view: game.view, log: game.log.slice(), botInfo: game.botInfo });
+      const data = await move({
+        op: "action", state: game.state, human: game.human, action,
+        bot: isUploaded ? undefined : selectedBot, bot_name: selectedBot
+      });
+      game.history.push({ state: game.state, view: game.view, log: game.log.slice(), botInfo: game.botInfo, observation: game.observation });
       busy = false; apply(data);
     } catch (e) { fail(e); return; }
     await botTurn();
@@ -465,8 +689,13 @@
     hover = null; lastWallKey = null;
     busy = true;
     try {
-      const data = await move({ op: "new", human: choice.human });
-      Object.assign(game, { human: choice.human, level: choice.level, log: [], history: [], botInfo: null });
+      const req = { op: "new", human: choice.human };
+      if (isUploaded) req.bot_name = selectedBot; else req.bot = selectedBot;
+      const data = await move(req);
+      Object.assign(game, {
+        human: choice.human, level: choice.level, log: [], history: [],
+        botInfo: null, botName: isUploaded ? selectedBot : data.bot_name, observation: data.observation
+      });
       busy = false; state = null; apply(data, false);
     } catch (e) { fail(e); return; }
     await botTurn();
@@ -488,7 +717,7 @@
     if (busy || !game.history.length) return;
     hover = null;
     const h = game.history.pop();
-    Object.assign(game, { state: h.state, view: h.view, log: h.log, botInfo: h.botInfo });
+    Object.assign(game, { state: h.state, view: h.view, log: h.log, botInfo: h.botInfo, observation: h.observation });
     apply(null, false);
   });
   document.getElementById("theme").addEventListener("click", () => {
@@ -506,7 +735,7 @@
   });
   applyRotation();
 
-  newGame();
+  loadLibrary().then(() => newGame());
 })();
 </script>
 </body>

@@ -47,6 +47,16 @@ def load_bot(path):
     return _bots[path]
 
 
+def load_bot_from_code(code_str, name="custom"):
+    """Nạp bot tạm thời từ chuỗi mã nguồn Python trong RAM (không lưu file ra ổ đĩa)."""
+    spec = importlib.util.spec_from_loader("web_bot_" + name, loader=None)
+    module = importlib.util.module_from_spec(spec)
+    exec(code_str, module.__dict__)
+    if not callable(getattr(module, "choose_action", None)):
+        raise BadRequest("Bot thiếu hàm choose_action(observation)")
+    return module, getattr(module, "MAX_DEPTH", None)
+
+
 # ------------------------------------------------------------ kiểm tra đầu vào
 def _int(value, lo, hi, name):
     if type(value) is not int or not lo <= value <= hi:
@@ -101,9 +111,12 @@ def view(env, human):
     }
 
 
-def respond(env, human, event=None, bot_path=DEFAULT_BOT):
-    return {"state": env.snapshot(), "view": view(env, human), "event": event,
-            "bot_name": Path(bot_path).stem}
+def respond(env, human, event=None, bot_path=DEFAULT_BOT, custom_name=None):
+    res = {"state": env.snapshot(), "view": view(env, human), "event": event,
+           "bot_name": custom_name or Path(bot_path).stem}
+    if not env.done:
+        res["observation"] = env.get_observation(env.current_player)
+    return res
 
 
 def _event(env, player, human, result, extra=None):
@@ -114,38 +127,56 @@ def _event(env, player, human, result, extra=None):
     return e
 
 
+def _resolve_bot(name, default_path):
+    if name:
+        clean = name.replace("builtin:", "").strip()
+        candidate = ARENA_DIR / "submissions" / (Path(clean).stem + ".py")
+        if candidate.is_file():
+            return candidate
+    return default_path
+
+
 # ------------------------------------------------------------ xử lý
 def handle(req, bot_path=DEFAULT_BOT):
     if not isinstance(req, dict):
         raise BadRequest("Request phải là JSON object")
     op = req.get("op")
     human = _int(req.get("human", 0), 0, 1, "human")
+    bot_path = _resolve_bot(req.get("bot"), bot_path)
+    custom_name = req.get("bot_name")
 
     if op == "new":
-        return respond(Environment(), human, bot_path=bot_path)
+        return respond(Environment(), human, bot_path=bot_path, custom_name=custom_name)
 
     env = env_from_state(req.get("state"))
     if env.done:
         raise BadRequest("Ván đã kết thúc")
 
     if op == "action":
-        if env.current_player != human:
-            raise BadRequest("Chưa tới lượt bạn")
+        player = _int(req.get("player", human), 0, 1, "player")
+        if env.current_player != player:
+            raise BadRequest("Chưa tới lượt bạn" if player == human else "Chưa tới lượt bot")
         action = req.get("action")
         if not isinstance(action, dict):
             raise BadRequest("Thiếu nước đi")
-        kind = action.get("type")
-        if kind == "move":
-            if list(action.get("to") or []) not in env.legal_moves():
-                raise BadRequest("Nước đi không hợp lệ")
-        elif kind == "wall":
-            wall = {k: action.get(k) for k in ("orientation", "row", "col")}
-            if wall not in env.legal_wall_actions():
-                raise BadRequest("Không thể đặt tường ở đây")
-        else:
-            raise BadRequest("Hành động không hợp lệ")
+        if player == human:
+            kind = action.get("type")
+            if kind == "move":
+                if list(action.get("to") or []) not in env.legal_moves():
+                    raise BadRequest("Nước đi không hợp lệ")
+            elif kind == "wall":
+                wall = {k: action.get(k) for k in ("orientation", "row", "col")}
+                if wall not in env.legal_wall_actions():
+                    raise BadRequest("Không thể đặt tường ở đây")
+            elif kind == "pass":
+                pass
+            else:
+                raise BadRequest("Hành động không hợp lệ")
         result = env.step(action)
-        return respond(env, human, _event(env, human, human, result), bot_path)
+        extra = {}
+        if req.get("elapsed") is not None:
+            extra["time"] = req["elapsed"]
+        return respond(env, human, _event(env, player, human, result, extra), bot_path, custom_name)
 
     if op == "bot":
         if env.current_player == human:
@@ -153,9 +184,14 @@ def handle(req, bot_path=DEFAULT_BOT):
         level = req.get("level") if req.get("level") in LEVELS else "hard"
         player = env.current_player
         obs = env.get_observation()
+        bot_code = req.get("bot_code")
         with _lock:                       # MAX_DEPTH là biến toàn cục của module bot
-            bot, default_depth = load_bot(bot_path)
-            bot.MAX_DEPTH = LEVELS[level] or default_depth
+            if bot_code:
+                bot, default_depth = load_bot_from_code(bot_code, custom_name or "custom")
+            else:
+                bot, default_depth = load_bot(bot_path)
+            if hasattr(bot, "MAX_DEPTH"):
+                bot.MAX_DEPTH = LEVELS[level] or default_depth
             t0 = time.perf_counter()
             try:
                 action = bot.choose_action(obs)
@@ -165,6 +201,6 @@ def handle(req, bot_path=DEFAULT_BOT):
             info = dict(getattr(bot, "LAST_INFO", {}) or {})
         result = env.step(action)
         return respond(env, human, _event(env, player, human, result,
-                                          {"time": elapsed, "depth": info.get("depth")}), bot_path)
+                                          {"time": elapsed, "depth": info.get("depth")}), bot_path, custom_name)
 
     raise BadRequest("op không hợp lệ")
