@@ -439,13 +439,6 @@
   draw(INITIAL);
   applyRotation();
 
-  // ---------- Helpers
-  async function getJSON(url) {
-    const res = await fetch(url);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Lỗi nạp " + url);
-    return data;
-  }
   // ---------- Helpers & Uploaded Bots
   const uploadedBots = {};
   const CUSTOM_KEY = "wrongway-custom-bots";
@@ -463,16 +456,35 @@
     if (!res.ok) throw new Error(data.error || "Lỗi nạp " + url);
     return data;
   }
+
   async function source(id) {
     if (id === "env" || id === "builtin:env") {
       if (!codeCache["env"]) codeCache["env"] = (await getJSON("/api/bots?id=env")).code;
       return codeCache["env"];
     }
-    if (uploadedBots[id]) return uploadedBots[id].code;
-    const cleanId = id.startsWith("builtin:") || id.startsWith("uploaded:") ? id : "builtin:" + id;
-    if (uploadedBots[cleanId]) return uploadedBots[cleanId].code;
-    if (!codeCache[id]) codeCache[id] = (await getJSON("/api/bots?id=" + encodeURIComponent(cleanId))).code;
-    return codeCache[id];
+
+    // 1. Kiểm tra bot do người dùng tải lên (theo id hoặc name)
+    const norm = (id || "").replace(/^uploaded:/, "").replace(/^builtin:/, "").trim();
+    if (uploadedBots[id]) return uploadedBots[id].code || uploadedBots[id];
+    if (uploadedBots["uploaded:" + norm]) {
+      const b = uploadedBots["uploaded:" + norm];
+      return b.code || b;
+    }
+    const foundUp = Object.values(uploadedBots).find(b => b.name === norm || b.id === id || b.name === id);
+    if (foundUp) return foundUp.code || foundUp;
+
+    // 2. Kiểm tra bộ nhớ cache
+    if (codeCache[id]) return codeCache[id];
+    if (codeCache[norm]) return codeCache[norm];
+    if (codeCache["builtin:" + norm]) return codeCache["builtin:" + norm];
+
+    // 3. Tải từ máy chủ
+    const cleanId = "builtin:" + norm;
+    const res = await getJSON("/api/bots?id=" + encodeURIComponent(cleanId));
+    codeCache[id] = res.code;
+    codeCache[norm] = res.code;
+    codeCache[cleanId] = res.code;
+    return res.code;
   }
 
   // ---------- Segmented controls setup
@@ -881,15 +893,18 @@
         c0 = await source(p0);
         c1 = await source(p1);
       } catch (err) {
-        $(`res-${idx}`).textContent = "Lỗi nạp bot";
+        console.error("Lỗi nạp bot:", p0, p1, err);
+        $(`res-${idx}`).textContent = "Lỗi nạp: " + (err.message || "Không nạp được");
         continue;
       }
 
-      if (worker) { worker.terminate(); worker = null; }
-      worker = new Worker("/match-worker.js");
-
       try {
+        if (!worker) {
+          worker = new Worker("/match-worker.js");
+          setStatus(`Đang nạp môi trường Python (Pyodide)…`, "lần đầu có thể mất 10–20 giây", "run");
+        }
         const init = await ask(worker, { type: "init", env: envCode, codes: [c0, c1], maxTurns: 500, seed }, 60000);
+        if (init.type === "load-error") throw new Error("Bot lỗi không nạp được (slot " + init.slot + "): " + init.message);
         if (init.type !== "ready") throw new Error(init.message || "Không thể khởi tạo trận đấu");
 
         let state = init.state;
@@ -945,6 +960,7 @@
           $(`res-${idx}`).innerHTML = fix.resultHtml;
         }
       } catch (err) {
+        if (worker) { worker.terminate(); worker = null; }
         fix.resultText = "Lỗi: " + err.message;
         $(`res-${idx}`).textContent = fix.resultText;
       } finally {

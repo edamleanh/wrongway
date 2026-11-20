@@ -68,9 +68,9 @@ def get_source(bot_id):
     """Mã nguồn một bot, hoặc environment.py của Arena (id = 'env' hoặc 'builtin:env')."""
     if bot_id in ("env", "builtin:env"):
         return (ARENA_DIR / "environment.py").read_text(encoding="utf-8")
-    kind, _, name = (bot_id or "").partition(":")
-    if kind == "builtin" and name in builtin_bots():
-        return (SUBMISSIONS / (name + ".py")).read_text(encoding="utf-8")
+    clean = (bot_id or "").replace("builtin:", "").strip()
+    if clean in builtin_bots():
+        return (SUBMISSIONS / (clean + ".py")).read_text(encoding="utf-8")
     raise BadRequest("Không tìm thấy bot '{}'".format(bot_id))
 
 
