@@ -1,0 +1,9 @@
+# File trung gian khi bien dich LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz

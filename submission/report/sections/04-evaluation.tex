@@ -1,0 +1,129 @@
+\section{Evaluation method and results}
+\label{sec:evaluation}
+
+\subsection{Protocol}
+\label{sec:protocol}
+Games are played with the instructor's arena, which runs each agent in its own process and
+enforces the action format. Our gauntlet tool plays games in \emph{pairs}: the same seed is
+played twice with the sides swapped, so neither agent profits from moving first.
+\begin{itemize}
+  \item \textbf{Random openings.} Most agents are deterministic. Each pair therefore starts with
+        two random plies so that different pairs give different games. The seed list is fixed
+        (2026, plus 777 for confirmation), so two candidates face the same openings.
+  \item \textbf{Standard start.} Seasons are played only from the standard position, so every
+        candidate is also tested there. This catches fixed losing lines that random openings
+        hide.
+  \item \textbf{Simulated grading speed.} Our laptop (Intel i5-11400H) is about $2\times$ faster
+        than a Colab CPU. ``Colab speed'' therefore runs our agent with a
+        \SI{0.275}{\second} budget instead of \SI{0.55}{\second}. Opponents keep their own time,
+        which makes the test pessimistic for us.
+  \item \textbf{Noise.} The standard error of a score $s$ over $n$ games is
+        $\sqrt{s(1-s)/n}\le 0.5/\sqrt{n}$: about $\pm0.08$ for 40 games and $\pm0.04$ for 160.
+        Differences below about one standard error were treated as noise, and important
+        decisions were confirmed on a second seed.
+  \item \textbf{Identical-move checks.} Pure speed-ups must not change behaviour. They were
+        checked with a fixed \code{PYTHONHASHSEED} and fixed depth on 40--3\,000 positions.
+\end{itemize}
+
+\subsection{Opponents}
+\label{sec:opponents}
+\begin{itemize}
+  \item \textbf{Course sample bots:} \code{greedy}, \code{random\_agent}, \code{wall\_builder}.
+  \item \textbf{Bots shared in our arena by team members and classmates:}
+        \code{agent}, \code{HuynhDuy\_test2}, \code{Phat\_test1}, \code{Chubee},
+        \code{duytest} (MCTS), \code{chuong-alpha-beta}, \code{dtest2} and \code{Phat\_test2}
+        (the wall-hoarding pair of \cref{sec:walls}), and \code{az\_agent\_std1} (our previous
+        engine plus an AlphaZero-style policy network).
+  \item \textbf{A friendly-match bot from another team:} \code{mcts\_agent} (MCTS with tree reuse,
+        \SI{0.70}{\second}/move).
+  \item \textbf{Our own earlier versions:} \code{v2\_trained} and \code{v7\_linear}
+        (\cref{tab:versions}).
+  \item \textbf{An exploit bot}, \code{funnel}. It builds a wall funnel in front of our goal and
+        a private corridor, modelled on a strategy shown to the class.
+  \item \textbf{External programs:}
+        \begin{itemize}
+          \item the Hard AI of wrongway.app, run offline with the author's permission for
+                private testing only;
+          \item the MCTS agent of \citet{gorisanson} at its Novice, Average and Strong levels
+                (2.5k/7.5k/60k rollouts, about 1/3/21\,s per move).
+        \end{itemize}
+\end{itemize}
+
+\subsection{Results of the submitted version}
+\Cref{tab:final} gives the final evaluation of the submitted file (v9) against 16 opponents:
+160 standard-start games at real speed and 640 random-opening games at Colab speed.
+\Cref{tab:external} gives the results against the external programs.
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Final evaluation of the submitted agent (v9). W/D/L from our point of view; score
+$=(W+D/2)/n$. Standard start: 5 side-swapped pairs at \SI{0.55}{\second}/move. Random openings:
+20 pairs (seed 2026) at simulated Colab speed (\SI{0.275}{\second}/move).}
+\label{tab:final}
+\begin{tabular}{@{}l rrr r rrr r@{}}
+\toprule
+& \multicolumn{4}{c}{Standard start (10 games)} & \multicolumn{4}{c}{Random openings, Colab speed (40)} \\
+\cmidrule(lr){2-5}\cmidrule(l){6-9}
+Opponent & W & D & L & Score & W & D & L & Score \\
+\midrule
+\code{greedy}            & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{random\_agent}     & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{wall\_builder}     & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{agent}             & 10 & 0 & 0 & 1.00 & 38 & 2 & 0 & 0.97 \\
+\code{HuynhDuy\_test2}   & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{Phat\_test1}       & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{Chubee}            & 10 & 0 & 0 & 1.00 & 38 & 2 & 0 & 0.97 \\
+\code{duytest} (MCTS)    & 10 & 0 & 0 & 1.00 & 38 & 0 & 2 & 0.95 \\
+\code{chuong-alpha-beta} & 10 & 0 & 0 & 1.00 & 34 & 5 & 1 & 0.91 \\
+\code{mcts\_agent} (other team) &  9 & 0 & 1 & 0.90 & 36 & 2 & 2 & 0.93 \\
+\code{dtest2}            &  3 & 0 & 7 & \textbf{0.30} & 32 & 0 & 8 & 0.80 \\
+\code{Phat\_test2}       &  7 & 0 & 3 & 0.70 & 30 & 0 & 10 & 0.75 \\
+\code{az\_agent\_std1}   &  4 & 3 & 3 & 0.55 &  9 & 9 & 22 & \textbf{0.34} \\
+\code{funnel} (exploit)  & 10 & 0 & 0 & 1.00 & 40 & 0 & 0 & 1.00 \\
+\code{v2\_trained} (ours)&  9 & 0 & 1 & 0.90 & 37 & 0 & 3 & 0.93 \\
+\code{v7\_linear} (ours) &  5 & 0 & 5 & 0.50 & 18 & 5 & 17 & 0.51 \\
+\midrule
+Total & 137 & 3 & 20 & 0.87 & 550 & 25 & 65 & 0.88 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Results against external programs. Hard, 80 games: submitted version (v9), standard
+start, Colab speed. Hard, 200/240 games: v8 (\#37). gorisanson MCTS: measured with v4 at
+\SI{0.55}{\second}/move.}
+\label{tab:external}
+\begin{tabular}{@{}l l r r@{}}
+\toprule
+Opponent & Setting & Games & Score \\
+\midrule
+wrongway.app Hard (v9) & standard start, Colab speed & 80 & 0.775 \\
+wrongway.app Hard (v8) & standard start / random, Colab speed & 200 / 240 & 0.76 / 0.74 \\
+gorisanson MCTS Novice & random openings / standard start & 40 / 40 & 0.97 / 0.95 \\
+gorisanson MCTS Average & random openings & 20 & 0.65 \\
+gorisanson MCTS Strong & standard start & 2 & 2 wins \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Observations.}
+\begin{itemize}
+  \item Against 11 of the 16 opponents in \cref{tab:final} the agent scores at least 0.90 in
+        both settings, including the other team's \code{mcts\_agent}. Against the course sample
+        bots, the exploit bot and six of the team and classmate bots it does not lose a single
+        standard-start game.
+  \item The weakest results are against the wall-hoarding pair. With random openings v9 now beats
+        \code{dtest2} 0.80 (v8: 0.65). From the standard start the result still depends on
+        timing: 0.30 here (games run six at a time), 0.50 over the ten time budgets of \#45. This
+        is the main known risk before the season.
+  \item Against our own earlier engines (\code{v7\_linear}, \code{az\_agent\_std1}) v9 is even
+        or slightly worse (0.34 with random openings against \code{az\_agent\_std1}). This is the
+        trade-off accepted in \#45: valuing walls more helps against other styles but not against
+        our own.
+  \item Against the Hard AI the agent improved from 0.17--0.23 (v2) to 0.775 from the standard
+        start (\cref{tab:versions,tab:external}).
+  \item The submission checker reports no timeout, error or illegal action on either side. The
+        longest single move measured through the arena is \SI{0.578}{\second} for a
+        \SI{0.55}{\second} budget.
+\end{itemize}

@@ -1,0 +1,28 @@
+\begin{abstract}
+\noindent
+Wrongway is a two-player race on a $9\times9$ board in which each player may spend up to ten
+walls to lengthen the opponent's path. The arena allows one second per move on a Colab CPU, and
+the agent must be a single pure-Python file. We built a negamax alpha-beta agent with iterative
+deepening. Its evaluation function is a sum of lookup-table entries learned by TD-leaf($\lambda$)
+self-play.
+Our main finding, which guided most design decisions, is that search depth matters more than
+evaluation detail. In a diagnostic run, a fixed depth of 8 plies won 81\% of standard-start games
+against the strongest external program we could test, versus 59\% at depth 6. We therefore made
+the engine faster: 81-bit bitboards for every breadth-first search, incremental distance updates
+after a wall, and Stockfish-style move ordering. Together these give about a 7$\times$ speed-up at
+equal depth.
+We also removed an odd/even-depth bias of about 9.5 points in the evaluation. The bias had made
+the agent change its style depending on the depth it reached.
+Self-play learning left one blind spot: walls held in reserve were undervalued against
+opponents that keep their walls. Scaling that part of the table by 1.2 raised our standard-start
+score against such bots from 0.23 to 0.50 at no measurable cost elsewhere.
+The process is logged as 45 numbered experiments covering about 100 hand-designed variants,
+about 500 evolutionary weight mutants and six learning runs. Each candidate was judged with
+paired, side-swapped games at simulated Colab speed.
+In the final evaluation the submitted version scores 0.87 over 160 standard-start games and
+0.88 over 640 random-opening games against 16 opponents. The opponents are the course sample
+bots, nine team and classmate bots, a bot from another team, an exploit bot and our own earlier
+versions.
+At simulated grading speed it scores 0.775 from the standard start against the ``Hard'' AI of
+wrongway.app, versus 0.17--0.23 for our first trained version.
+\end{abstract}

@@ -1,0 +1,172 @@
+\section{Development process}
+\label{sec:process}
+
+Development was organised as a sequence of numbered experiments (\#1--\#45) recorded in an
+experiment log (\code{training/EXPERIMENTS.md}). Each entry records the hypothesis, the variants,
+the measured numbers and the decision. Rejected ideas are logged too, so they are not retried.
+\Cref{tab:versions} lists the versions that were adopted. Scores are
+$(\text{wins} + \tfrac12\text{draws})/\text{games}$; ``Colab speed'' means the search budget was
+halved to simulate the slower grading CPU (\cref{sec:protocol}).
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Adopted versions. ``Hard'' is the Hard AI of wrongway.app (\cref{sec:opponents}).
+H2H = head-to-head against the previous adopted version.}
+\label{tab:versions}
+\begin{tabularx}{\linewidth}{@{}l X X@{}}
+\toprule
+Version (exp.) & Main change & Key measurement \\
+\midrule
+v0 (\#1) & greedy along the arena distance map, heuristic walls & loses to the sample \code{wall\_builder} \\
+v1 (\#3) & alpha-beta, iterative deepening, tuple cells, depth $\le 4$ & beats greedy/random; still loses to \code{wall\_builder} (spends walls early) \\
+v2 (\#5--6) & integer cells, frozenset of blocked edges, transposition table (depth 5--6); 30 generations of weight evolution & 0.85 vs v1; only 0.17--0.23 vs Hard \\
+v4 (\#15--16) & vulnerability feature $u$; defensive walls at the root & 0.52 vs Hard (120 games), 0.74 vs v2 \\
+v5 (\#19--22) & bitboard BFS ($2.05\times$, same moves); partial iterations; move ordering ($1.3\times$); progress tie-break & H2H 0.60 (160 games, Colab speed); vs Hard standard start $0.35\to0.47$ \\
+v6 (\#23, \#26--27) & lead/reserve term (keep walls when ahead); vulnerability over 8 steps; rush rule & H2H 0.69--0.70 (reserve); exploit bot ``funnel'' 0 wins in 80 \\
+v7 (\#31--34) & symmetric evaluation + tempo; depth cap $6\to10$; incremental distances ($2.6\times$) & Hard standard start 0.75, random 0.76; H2H 0.625 (160 games) \\
+v8 (\#37) & evaluation rewritten as 428-entry tables, refined by TD-leaf($\lambda$) & H2H 0.49 (200 games); Hard 0.76 (200) / 0.74 (240) \\
+\textbf{v9 (\#44--45)} & \textbf{held walls valued $1.2\times$ higher in the wall table} & vs wall-hoarding bots $0.23\to0.50$ (40 games); Hard standard start 0.775 (80); H2H 0.455 (160) --- \textbf{submitted} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The turning point: depth, not evaluation}
+\label{sec:depth}
+Until v6, most attempts to improve the evaluation or to search unevenly failed:
+\begin{itemize}
+  \item a wall quiescence search (\#7);
+  \item late-move reductions (\#24);
+  \item search extensions for heavy walls (\#30).
+\end{itemize}
+Two diagnostics explained why.
+
+\paragraph{Depth is the bottleneck (\#29).}
+Ignoring the time limit, the same evaluation searched to a fixed depth of 6, 7 and 8 plies scored
+0.59, 0.55 and \textbf{0.81} against Hard from the standard start (80 games each). Eight plies are
+enough to see four consecutive opponent walls. Better heuristics could not replace that.
+
+\paragraph{The evaluation had an odd/even bias (\#31).}
+The root value at depth $d$ minus the value at depth $d-1$ was $+9.7, -9.3, +9.5, -9.4$ for
+$d = 3..6$ (74 positions). For comparison, one step of distance is worth about 1.38 points.
+The cause was two distance weights applied relative to the side to move at the leaf: for the two
+players' views of the same position, $E(p) + E(q) = -0.43\,(d_p + d_q) \approx -9$ instead of~0.
+The agent's style therefore flipped with the parity of the depth it happened to reach. This
+explained the back-and-forth shuffling seen in replays and the failure of every uneven-depth
+technique (they compare odd and even branches).
+\begin{itemize}
+  \item \textbf{Fix (\#32).} Dropping the two weights and adding a tempo constant reduced the bias
+        to below 0.4.
+  \item \textbf{Payoff (\#33).} With the bias gone, a deeper cap finally helped: Hard
+        standard-start score rose from 0.56 to 0.70 with cap 8. Cap 10 was kept.
+\end{itemize}
+From then on, effort went into speed (\#34, $2.6\times$ with identical candidate sets).
+
+\subsection{A standard-start weakness: undervalued walls (\#44--45)}
+\label{sec:walls}
+Two bots from our own team (\code{dtest2}, \code{Phat\_test2}) share 95\% of their code and hold
+their walls for later. Other teams were known to follow the same idea, so we treated them as a
+proxy for that style.
+\begin{itemize}
+  \item \textbf{The problem.} From the standard start, with both sides at simulated grading speed
+        and games played one at a time, v8 lost all 20 games against them. As first player it
+        replayed the same 74-move loss every time.
+  \item \textbf{Diagnosis (\#44).} A deeper search of our own (depth 9) agreed with every move
+        from move 37 on, so the game was lost earlier. v8 had spent 7 of its 10 walls by move 25,
+        against 3 for the opponent, and the opponent's remaining walls then pushed our path from 7
+        to 13 steps.
+  \item \textbf{Two things ruled out.} A fixed depth of 7 or 8 still lost as first player, so an
+        opening book computed by deep search would not help. The opponent also searched
+        \emph{shallower} than us (7.15 vs 8.0 plies on average), so it did not win by depth.
+  \item \textbf{Conclusion.} The tables learned by self-play value a wall in hand too low against
+        an opponent that, unlike our own engine, keeps its walls.
+  \item \textbf{Fix (\#45).} We scaled the held-wall part of the table,
+        $W[w][d] \leftarrow W[0][d] + s\,(W[w][d]-W[0][d])$. Each value of $s$ was measured on
+        standard-start games at ten different time budgets, to obtain different game lines.
+\end{itemize}
+The results for $s = 1.0 / 1.2 / 1.4$:
+\begin{itemize}
+  \item against the wall-hoarding pair: 0.23 / 0.50 / 0.65 (40 games each);
+  \item against Hard from the standard start: 0.75 / 0.775 / 0.625;
+  \item head-to-head against $s=1$: 0.455 / 0.395 (160 games).
+\end{itemize}
+$s=1.4$ only exploits one style, at a cost against Hard. $s=1.2$ fixes the weakness without a
+measurable loss elsewhere (0.966 vs 0.969 against eight other bots), so it was adopted.
+
+\subsection{Rejected ideas}
+\Cref{tab:rejected} lists the main rejected ideas. A recurring lesson: optimising against a single
+opponent, or training at a shallower depth than the agent plays at, gives weights that do not
+transfer.
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Main rejected ideas (all measured with the protocol of \cref{sec:protocol}).}
+\label{tab:rejected}
+\begin{tabularx}{\linewidth}{@{}l X X@{}}
+\toprule
+Idea (exp.) & Result & Reason \\
+\midrule
+Value network, 1-ply (\#2) & 0--5\% vs heuristic bots & learned the spurious rule ``placing walls wins'' \\
+Wall quiescence (\#7) & 0.51--0.62 vs v2 & costs depth \\
+Repetition penalty (\#8) & 0.45 vs v2 & treats a symptom, not the cause \\
+\code{pass} in the tree (\#12--13) & 0.26--0.30 vs Hard, 0.30--0.50 vs v2 & larger tree, no gain \\
+Evolution against Hard only (\#14, \#17) & better vs Hard or vs alpha-beta bots, never both & over-fits one opponent; trained at depth 4 \\
+Late-move reductions (\#24) & 0.35 vs previous & reduced moves were exactly the trap walls \\
+Wall-pair trap search (\#25) & +0.14 vs Hard standard start, $-0.10$ random & not better everywhere \\
+Heavy-wall extensions (\#30, \#33) & 0.33--0.38 vs previous & uneven depth \\
+Re-evolution after v7 (\#35) & 1 of 14 generations accepted; H2H 0.47 & weights already at a local optimum \\
+TD at depth 2--3 (\#36) & H2H 0.34 & depth mismatch between training and play \\
+TD ``stance'' tables, +202 params (\#38) & H2H 0.44 (120 games) & no gain, 4--5\% slower \\
+AlphaZero-style policy/value nets (\#39--41) & best 0.49 vs MSSV (60 games) & too little self-play data in a pure-Python budget \\
+Shared wall-effect cache (\#42) & identical moves, same speed & cache hit rate only 29\% \\
+Keep TT and caches across moves (\#43) & average depth 6.36 vs 6.59 & the last iteration dominates the time \\
+Opening book from deep search (\#44) & depth 7--8 still loses the same opening & problem is evaluation, not depth \\
+Wall scale $s=1.4$ (\#45) & 0.625 vs Hard, H2H 0.395 & exploits one style only \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{AI-assisted variant pipeline}
+\label{sec:pipeline}
+The course allows AI tools. We used an AI coding assistant (Claude Code by Anthropic) throughout
+the project. The team set the goals and made every adoption decision. The assistant wrote most
+variants, ran the measurements and kept the log. Every change to the submitted file was reviewed,
+and the team can explain it. The pipeline was:
+\begin{enumerate}
+  \item \textbf{Hypothesis from failures.} Losing games were saved as replays. The position
+        before the mistake was rebuilt, and the root scores of every candidate were printed at
+        each depth. Examples: the 50-turn shuffling (\#22) and the odd/even bias (\#31).
+  \item \textbf{Variant generation.} The assistant implemented each hypothesis as a copy of the
+        current agent behind a flag or parameter, for example \code{PROGRESS\_BONUS}
+        $\in\{0.001, 0.2\}$ or \code{VULN\_STEPS} $\in\{4, 8, \infty\}$. Parameter sweeps usually
+        produced 2--5 files at once. Optimisation-only changes were also checked for identical
+        moves with a fixed hash seed.
+  \item \textbf{Static gates.}
+        \begin{itemize}
+          \item Unit tests: the simulated rules must match the arena's moves, legal walls and
+                distances on more than 500 random positions; self-play must stay legal; the
+                agent must take an immediate win.
+          \item A submission checker: both sides against the three sample bots, zero
+                timeouts/errors, and the longest move time reported.
+        \end{itemize}
+  \item \textbf{Measurement} with the gauntlet of \cref{sec:protocol}: 40--240 games per
+        opponent, at simulated grading speed.
+  \item \textbf{Selection criteria.} A variant was adopted only if
+        \begin{enumerate}[label=(\alph*)]
+          \item it was not worse than the current champion head-to-head beyond noise (about one
+                standard deviation, \cref{sec:protocol});
+          \item it was not worse against Hard, from both the standard start and random openings;
+          \item it still won the standard-start games against every sparring bot;
+          \item it was clearly better somewhere.
+        \end{enumerate}
+        When two versions were equal, the simpler one was kept (\#38).
+\end{enumerate}
+
+\paragraph{Scale.}
+\begin{itemize}
+  \item 45 logged experiments containing about 100 hand-designed variants.
+  \item Five evolution runs: 86 generations of 6 mutants, i.e.\ about 500 weight vectors, each
+        judged on several dozen games.
+  \item Three TD-leaf runs (14\,400, 4\,000 and 4\,000 self-play games).
+  \item Three AlphaZero-style runs.
+\end{itemize}
+In total the agent played tens of thousands of games during development.

@@ -1,0 +1,51 @@
+\section{Discussion, limitations and conclusion}
+\label{sec:conclusion}
+
+\paragraph{What worked.}
+The measurable gains came from three sources:
+\begin{itemize}
+  \item searching deeper per second: bitboards, incremental distances, move ordering;
+  \item removing a systematic bias from the evaluation;
+  \item a few targeted rules found by reading replays: the progress tie-break, the rush rule
+        and defensive walls.
+\end{itemize}
+Each of these fixed a concrete, reproducible failure. Learning the evaluation with TD-leaf gave
+an interpretable evaluation of equal strength rather than a stronger one. Under this search
+regime, adding more static information to the evaluation did not change results (\#35, \#37,
+\#38).
+Pure self-play has a blind spot: the agent only learns how much a held wall is worth against
+itself. Testing against bots with a different style (\#44--45) exposed this, and a one-parameter
+correction fixed it.
+
+\paragraph{Limitations and threats to validity.}
+\begin{itemize}
+  \item \emph{Grading speed is simulated.} The instructor confirmed that grading runs on a free
+        Colab CPU and that the one-second limit includes inter-process communication. We assume
+        that machine is about $2\times$ slower than our laptop (Intel i5-11400H); this ratio has
+        not been measured on Colab itself. Most tests slow down only our agent, which is
+        pessimistic for us; the key standard-start tests slow down both agents.
+  \item \emph{Noise.} With 40 games the standard error of a score is about 0.08, and several
+        decisions rest on differences of 0.05--0.10. Where possible we repeated runs on a second
+        seed and pooled 160--240 games.
+  \item \emph{Standard start is nearly deterministic.} Two deterministic agents produce only two
+        distinct standard-start games, varied only by timing. A fixed losing line could
+        therefore exist against an unseen opponent even though random-opening results are good.
+  \item \emph{Horizon effect.} The agent still sometimes delays when one wall would hurt it
+        badly. Defensive walls cover single-wall traps only, and only at the root.
+  \item \emph{Opponent pool.} The pool contains our own earlier versions, so it may favour
+        styles similar to ours. External programs (Hard, gorisanson's MCTS) reduce but do not
+        remove this bias.
+\end{itemize}
+
+\paragraph{Conclusion.}
+Our answer to the research question: under a one-second pure-Python budget, the strongest
+design we found was a fast, well-ordered alpha-beta search with a symmetric evaluation that is
+cheap enough to keep depth high, plus testing against opponents of other styles. The submitted
+agent scores 0.87 from the standard start and 0.88 with random openings against 16 opponents,
+and 0.775 from the standard start against wrongway.app's Hard AI at simulated grading speed. Its
+main known weakness is still the standard start against wall-hoarding bots, where the result
+depends on timing.
+Depth~8 would win 0.81 against Hard, but two further speed-up attempts (\#42--43) gave no gain,
+and a parallel search is not worthwhile on the single physical core of a free Colab CPU. The most
+promising future work is therefore to learn the evaluation against a diverse pool of opponents
+rather than by self-play alone.

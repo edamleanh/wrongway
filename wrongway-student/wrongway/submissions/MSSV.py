@@ -1,51 +1,24 @@
-"""Agent Wrongway: tìm kiếm alpha-beta + hàm đánh giá có trọng số học được.
+"""Agent Wrongway: tìm kiếm alpha-beta + hàm đánh giá tra bảng học bằng TD-leaf(lambda).
 
-Đổi tên file thành <MSSV>.py trước khi nộp.
+Tổng quan (lý do và số liệu thử nghiệm nằm trong báo cáo PDF):
+1. Luật chơi được mô phỏng bằng BITBOARD: cả bàn cờ là một số nguyên 81 bit (bit i = ô i,
+   ô i = hàng * 9 + cột); BFS tính khoảng cách loang mọi ô cùng lúc bằng phép dịch bit.
+2. Tìm kiếm negamax alpha-beta, đào sâu dần tới khi hết TIME_BUDGET, có bảng chuyển vị
+   và sắp thứ tự nước (nước trong bảng chuyển vị, killer, history, PVS). Ứng viên mỗi nút:
+   mọi nước đi + tối đa WALL_CANDIDATES tường trên đường ngắn nhất của đối thủ; riêng ở gốc
+   thêm các tường phòng thủ.
+3. Hàm đánh giá = tổng các ô tra bảng (khoảng cách, số tường, mức dẫn, độ dễ bị chặn).
+   Các ô được học qua tự đấu (training/td_learn.py) rồi ghi thẳng vào khối WEIGHTS bên dưới,
+   vì file nộp không được đọc file ngoài.
 
-Cách hoạt động:
-1. Tự mô phỏng luật chơi (đi, nhảy, đi chéo, tường hợp lệ) để nhìn trước.
-   Ô cờ được đánh số 0..80 (= hàng*9 + cột). Tường và khoảng cách đều dùng
-   BITBOARD (như Stockfish): cả bàn là một số nguyên 81 bit; tập tường là 4
-   bitboard "ô nào đi được lên/xuống/trái/phải"; BFS loang ra mọi ô cùng lúc
-   bằng phép dịch bit. BFS là phần tốn thời gian nhất nên có 3 mẹo để làm ít đi:
-   - loang ngược từ đích MỘT lần cho mỗi tập tường (goal_layers, có cache) là
-     biết khoảng cách và đường ngắn nhất của mọi ô;
-   - thử một bức tường thì chỉ loang lại vài bước quanh bức tường đó
-     (dist_after_wall) thay vì BFS lại từ đầu;
-   - ở nút lá, "độ dễ bị chặn" chỉ được tính khi còn ảnh hưởng tới việc cắt tỉa.
-   -> cùng độ sâu nhanh gấp ~2.6 lần BFS thường (chọn cùng tập nước), nên nhìn
-   sâu hơn trong cùng thời gian.
-2. Tìm kiếm negamax alpha-beta, đào sâu dần (1, 2, 3... nước) tới khi hết giờ,
-   có bảng chuyển vị (transposition table) để không tính lại thế cờ trùng.
-   Hết giờ giữa một độ sâu: vẫn dùng nước đã được chứng minh tốt hơn nước cũ.
-   Sắp thứ tự nước để alpha-beta cắt tỉa nhiều (kỹ thuật kiểu Stockfish):
-   nước trong bảng TT được thử TRƯỚC khi sinh các nước còn lại (thường cắt tỉa
-   ngay, khỏi tốn BFS cho mọi tường); rồi 2 "killer move" của tầng; hòa điểm thì
-   xét "history"; các nước sau nước đầu dò bằng cửa sổ hẹp (PVS).
-   -> nhanh hơn ~1.3 lần ở độ sâu 5-6, chọn nước y hệt.
-   Ở gốc, hai nước bằng điểm thì chọn nước tiến gần đích hơn (tránh đi qua đi lại
-   chờ đối thủ chặn trong khi đối thủ cứ thế đi về đích).
-   Ứng viên mỗi nút: mọi nước đi + tối đa WALL_CANDIDATES tường chắn trên
-   đường ngắn nhất của đối thủ (xếp theo lợi ích). Ở gốc thêm "tường phòng thủ":
-   chiếm chỗ các bức tường nguy hiểm nhất mà đối thủ có thể đặt để nhốt mình.
-3. Hàm đánh giá = tổng các ô TRA BẢNG (đặc trưng thưa): giá trị của "còn cách
-   đích d bước", của "còn w tường khi đối thủ cách đích d bước", của "dẫn l bước
-   khi còn w tường" (dẫn càng xa thì mỗi bức tường còn giữ càng quý, nên bot
-   không xài hết tường khi đã thắng chắc cuộc đua), và hệ số của "độ dễ bị chặn"
-   (vuln: một bức tường của đối thủ làm mình đi thêm tối đa bao nhiêu bước) theo
-   số tường đối thủ còn.
-   Hàm đánh giá ĐỐI XỨNG: đổi vai hai người chơi thì điểm đổi dấu (chỉ cộng thêm
-   hằng số "tempo" cho người sắp đi). Nhờ vậy một thế cờ được chấm như nhau dù
-   tìm tới độ sâu chẵn hay lẻ; bản cũ lệch ~9 điểm giữa hai trường hợp nên bot
-   đổi phong cách theo độ sâu đạt được ở mỗi lượt.
-   Các ô trong bảng được học bằng HỌC TĂNG CƯỜNG, thuật toán TD-leaf(lambda)
-   (training/td_learn.py): bot tự đấu với chính nó; sau mỗi ván, mỗi ô được chỉnh
-   một chút để dự đoán thắng/thua ở thế cờ trước khớp hơn với dự đoán ở thế cờ
-   sau và với kết quả ván. Bảng khởi đầu = công thức tuyến tính cũ (trọng số tìm
-   bằng thuật toán tiến hóa, training/evolve.py). Bảng đã học được ghi thẳng vào
-   file này (file nộp không được đọc file ngoài).
+Ký hiệu dùng xuyên suốt:
+- p: người chơi sắp đi ở nút đang xét; q = 1 - p: đối thủ của p; me: mình (ở gốc).
+- pos[i], goals[i], wl[i], dist[i]: ô đang đứng, hàng đích, số tường còn lại và số bước
+  tới đích của người chơi i.
+- (o, r, c): bức tường hướng o ("H" ngang, "V" dọc) có góc trên trái ở hàng r, cột c.
+- hw, vw: tập tường ngang / dọc dạng {(r, c)}; blocked: bộ 4 bitboard "đi được".
 
-Ràng buộc nộp: một file, Python 3.9+, thư viện chuẩn, < 1 s mỗi nước,
+Ràng buộc nộp: một file, Python 3.9+, chỉ thư viện chuẩn, < 1 s mỗi nước,
 import < 5 s, RAM <= 128 MB.
 """
 
@@ -55,7 +28,7 @@ import time
 SIZE = 9
 N = SIZE * SIZE
 TIME_BUDGET = 0.55       # giây cho mỗi nước (giới hạn thật 1 s, Colab chậm hơn máy)
-MAX_DEPTH = 10           # trần độ sâu của đào sâu dần (thế cờ ít tường tìm rất nhanh nên tới được 8-10)
+MAX_DEPTH = 10           # trần độ sâu của đào sâu dần (thế cờ ít tường tới được 8-10)
 WALL_CANDIDATES = 8      # số tường tốt nhất được xét ở mỗi nút
 DEFENSE_THREATS = 3      # số tường nguy hiểm nhất của đối thủ cần tìm cách chặn trước (ở gốc)
 VULN_STEPS = 8           # độ dễ bị chặn: chỉ thử tường trên VULN_STEPS bước đầu của đường đi
@@ -63,10 +36,10 @@ KILLERS = True           # nhớ 2 nước gây cắt tỉa ở mỗi tầng, th
 HISTORY = True           # điểm lịch sử: nước hay gây cắt tỉa được ưu tiên khi hòa thứ tự
 PVS = True               # tìm cửa sổ hẹp cho các nước sau nước đầu
 LAZY_TT = True           # thử nước trong bảng TT trước khi sinh mọi nước con
-EPS = 1e-6
+EPS = 1e-6               # độ rộng cửa sổ hẹp của PVS
 RUSH_WALLS = 0           # còn <= RUSH_WALLS tường: ở gốc chỉ xét nước tiến gần đích (+ tường)
 PROGRESS_BONUS = 0.001   # ở gốc: khi hòa điểm, ưu tiên nước đưa mình gần đích hơn (phá thế hòa)
-WIN = 10000.0
+WIN = 10000.0            # điểm của thế thắng (lớn hơn mọi điểm đánh giá)
 DIST_CAP = 40            # bảng dist: khoảng cách lớn nhất có ô riêng
 OPP_CAP = 20             # bảng walls: khoảng cách đối thủ lớn nhất có cột riêng
 LEAD_CAP = 6             # bảng lead: mức dẫn/thua lớn nhất có cột riêng (-LEAD_CAP..LEAD_CAP)
@@ -75,7 +48,7 @@ DIRS = ((-1, 0), (1, 0), (0, -1), (0, 1))   # lên, xuống, trái, phải (cùn
 # Hàm đánh giá = tổng các ô TRA BẢNG (đặc trưng thưa), nhìn từ người sắp đi:
 #   điểm = tempo + safe_race * safe + giá_trị(mình) - giá_trị(đối thủ)
 #          + vuln[tường mình] * vuln_đối_thủ - vuln[tường đối thủ] * vuln_mình
-#   giá_trị(X) = dist[d_X] + walls[tường_X][d_Y] + lead[tường_X][d_Y - d_X]     (Y = đối phương của X)
+#   giá_trị(X) = dist[d_X] + walls[tường_X][d_Y] + lead[tường_X][d_Y - d_X]   (Y = đối phương)
 #   dist[d]       : giá trị của việc còn cách đích d bước (càng xa càng âm)
 #   walls[w][d]   : giá trị của việc còn w tường khi đối phương còn cách đích d bước
 #   lead[w][l]    : thưởng/phạt theo mức dẫn l (-6..6 bước) khi còn w tường (giữ tường khi dẫn xa)
@@ -83,8 +56,9 @@ DIRS = ((-1, 0), (1, 0), (0, -1), (0, 1))   # lên, xuống, trái, phải (cùn
 #   safe_race     : +1 nếu đối thủ hết tường và mình về trước, -1 nếu ngược lại
 #   tempo         : hằng số cộng cho người sắp đi (được đi trước)
 # Đổi vai hai người chơi thì điểm đổi dấu (trừ tempo) -> chấm như nhau ở độ sâu chẵn và lẻ.
-# Các ô trong bảng được HỌC bằng TD-leaf(lambda) qua tự đấu (training/td_learn.py): sau mỗi ván,
-# mỗi ô được chỉnh để dự đoán của thế cờ trước khớp hơn với dự đoán của thế cờ sau / kết quả ván.
+# Các ô được học bằng TD-leaf(lambda) qua tự đấu (training/td_learn.py).
+# Sau khi học, phần chênh walls[w][d] - walls[0][d] được nhân 1.2 (tường còn trong tay đáng giá
+# hơn): tự đấu chỉ học lối chơi của chính bot nên đánh giá thấp tường trước đối thủ biết giữ tường.
 # ======================= WEIGHTS BEGIN (tự sinh bởi training/td_learn.py) =======================
 WEIGHTS = {
     "tempo": 1.0091,
@@ -92,16 +66,16 @@ WEIGHTS = {
     "dist": [0.0, -0.5374, -2.5276, -4.2, -5.6729, -7.0722, -8.4326, -9.7688, -11.1486, -12.4701, -13.8578, -15.2127, -16.5472, -17.8974, -19.2694, -20.5943, -21.932, -23.3368, -24.7457, -26.1292, -27.5081, -28.8939, -30.309, -31.6937, -33.1009, -34.508, -35.9169, -37.2822, -38.6638, -40.0111, -41.3883, -42.7534, -44.176, -45.5556, -46.937, -48.3175, -49.698, -51.0785, -52.459, -53.8395, -55.22],
     "walls": [
         [0.0, -0.0149, 0.1793, 0.3276, 0.3757, 0.3182, 0.2471, 0.1686, 0.1139, 0.0597, 0.0194, -0.0277, -0.0811, -0.1325, -0.1493, -0.1625, -0.1985, -0.2299, -0.1814, -0.183, -0.2347],
-        [1.9854, 0.9245, 1.5145, 1.9643, 2.0901, 2.1458, 2.1321, 2.0744, 2.0449, 2.0644, 2.0243, 1.9819, 2.0068, 1.9789, 1.9332, 1.9345, 1.9098, 1.8954, 1.9574, 2.0028, 1.9926],
-        [3.9708, 3.5652, 3.8824, 4.0679, 4.1321, 4.2164, 4.1957, 4.1558, 4.131, 4.1682, 4.1933, 4.1059, 4.1158, 4.0566, 3.9741, 4.0665, 4.0432, 4.0653, 4.0804, 4.0936, 4.1322],
-        [5.9562, 5.6644, 5.9273, 6.0635, 6.166, 6.2806, 6.288, 6.2675, 6.2201, 6.2816, 6.2088, 6.1855, 6.1658, 6.154, 6.0996, 6.1523, 6.1692, 6.1745, 6.1735, 6.1869, 6.2112],
-        [7.9416, 7.7692, 7.9901, 8.169, 8.2284, 8.2906, 8.2796, 8.3526, 8.3341, 8.2597, 8.2221, 8.2365, 8.2423, 8.3243, 8.1917, 8.1824, 8.237, 8.2676, 8.2164, 8.234, 8.1911],
-        [9.927, 9.8915, 10.1054, 10.2361, 10.2824, 10.3415, 10.3684, 10.4589, 10.3352, 10.3748, 10.4311, 10.3245, 10.2935, 10.2871, 10.3282, 10.2686, 10.2865, 10.2584, 10.3512, 10.3062, 10.3053],
-        [11.9124, 11.878, 12.111, 12.1935, 12.3083, 12.4915, 12.4907, 12.6068, 12.4176, 12.3146, 12.2796, 12.5026, 12.3992, 12.3218, 12.7029, 12.3776, 12.1499, 12.4258, 12.3528, 12.3613, 12.3633],
-        [13.8978, 14.0125, 14.1986, 14.3032, 14.4625, 14.6205, 14.6023, 14.4452, 14.5177, 14.3759, 14.5351, 14.4696, 14.4012, 14.3609, 14.4026, 14.4088, 14.4146, 14.4199, 14.421, 14.4225, 14.4238],
-        [15.8832, 16.042, 16.267, 16.4033, 16.5192, 16.6243, 16.3601, 16.3268, 16.6726, 16.4901, 16.4247, 16.4516, 16.4463, 16.4784, 16.4759, 16.4861, 16.4772, 16.4796, 16.4812, 16.4828, 16.4843],
-        [17.8686, 18.1989, 18.3783, 18.5075, 18.4455, 18.543, 18.529, 18.3228, 18.4352, 18.4435, 18.5224, 18.5181, 18.5236, 18.528, 18.5314, 18.5343, 18.5369, 18.5392, 18.5413, 18.5432, 18.5449],
-        [19.854, 20.255, 20.46, 20.4799, 20.5697, 20.2863, 20.3643, 20.4829, 20.2915, 20.4775, 20.5226, 20.5772, 20.5823, 20.5866, 20.5904, 20.5937, 20.5966, 20.5992, 20.6015, 20.6035, 20.6054],
+        [2.3825, 1.1124, 1.7815, 2.2916, 2.433, 2.5113, 2.5091, 2.4556, 2.4311, 2.4653, 2.4253, 2.3838, 2.4244, 2.4012, 2.3497, 2.3539, 2.3315, 2.3205, 2.3852, 2.44, 2.4381],
+        [4.765, 4.2812, 4.623, 4.816, 4.8834, 4.996, 4.9854, 4.9532, 4.9344, 4.9899, 5.0281, 4.9326, 4.9552, 4.8944, 4.7988, 4.9123, 4.8915, 4.9243, 4.9328, 4.9489, 5.0056],
+        [7.1474, 6.8003, 7.0769, 7.2107, 7.3241, 7.4731, 7.4962, 7.4873, 7.4413, 7.526, 7.4467, 7.4281, 7.4152, 7.4113, 7.3494, 7.4153, 7.4427, 7.4554, 7.4445, 7.4609, 7.5004],
+        [9.5299, 9.326, 9.5523, 9.7373, 9.7989, 9.8851, 9.8861, 9.9894, 9.9781, 9.8997, 9.8626, 9.8893, 9.907, 10.0157, 9.8599, 9.8514, 9.9241, 9.9671, 9.896, 9.9174, 9.8763],
+        [11.9124, 11.8728, 12.0906, 12.2178, 12.2637, 12.3462, 12.3927, 12.517, 12.3795, 12.4378, 12.5134, 12.3949, 12.3684, 12.371, 12.4237, 12.3548, 12.3835, 12.3561, 12.4577, 12.404, 12.4133],
+        [14.2949, 14.2566, 14.4973, 14.5667, 14.6948, 14.9262, 14.9394, 15.0944, 14.8783, 14.7656, 14.7316, 15.0087, 14.8953, 14.8127, 15.2733, 14.8856, 14.6196, 14.9569, 14.8596, 14.8702, 14.8829],
+        [16.6774, 16.818, 17.0025, 17.0983, 17.2799, 17.481, 17.4733, 17.3005, 17.3985, 17.2391, 17.4382, 17.3691, 17.2977, 17.2596, 17.313, 17.3231, 17.3372, 17.3499, 17.3415, 17.3436, 17.3555],
+        [19.0598, 19.2534, 19.4845, 19.6184, 19.7479, 19.8855, 19.5827, 19.5584, 19.9843, 19.7762, 19.7058, 19.7475, 19.7518, 19.8006, 19.8009, 19.8158, 19.8123, 19.8215, 19.8137, 19.816, 19.8281],
+        [21.4423, 21.8417, 22.0181, 22.1435, 22.0595, 22.188, 22.1854, 21.9536, 22.0995, 22.1203, 22.223, 22.2273, 22.2445, 22.2601, 22.2675, 22.2737, 22.284, 22.293, 22.2858, 22.2884, 22.3008],
+        [23.8248, 24.309, 24.5161, 24.5104, 24.6085, 24.2799, 24.3877, 24.5458, 24.327, 24.5611, 24.6232, 24.6982, 24.715, 24.7304, 24.7383, 24.7449, 24.7556, 24.765, 24.7581, 24.7608, 24.7734],
     ],
     "lead": [
         [-0.0016, -0.0057, -0.0118, -0.0241, -0.0445, -0.0866, -0.005, 0.1183, 0.2145, 0.2132, 0.1943, 0.1125, -0.0366],
@@ -122,7 +96,7 @@ WEIGHTS = {
 
 
 class Timeout(Exception):
-    pass
+    """Báo hết thời gian suy nghĩ; ném ra giữa cây tìm kiếm để dừng ngay."""
 
 
 # ------------------------------------------------------- 2. Bảng tính sẵn
@@ -149,10 +123,16 @@ for _i in range(N):
             _pair = (("H", _r, _c), ("H", _r, _c - 1))
         else:          # bước ngang -> tường dọc ở mép phải cột _c, bắt đầu từ hàng _r hoặc _r - 1
             _pair = (("V", _r, _c), ("V", _r - 1, _c))
-        EDGE_WALLS[_i, _b] = tuple(w for w in _pair if 0 <= w[1] < SIZE - 1 and 0 <= w[2] < SIZE - 1)
+        EDGE_WALLS[_i, _b] = tuple(w for w in _pair
+                                   if 0 <= w[1] < SIZE - 1 and 0 <= w[2] < SIZE - 1)
 
 
 def cell(r, c):
+    """Đổi tọa độ (hàng, cột) thành số thứ tự ô.
+
+    Đầu vào: r, c - hàng và cột (0..8).
+    Đầu ra: số thứ tự ô r * 9 + c (0..80).
+    """
     return r * SIZE + c
 
 
@@ -172,17 +152,27 @@ OPEN0 = (sum(1 << i for i in range(N) if ROW[i] > 0),          # lên
 # Là tuple số nguyên nên thêm một bức tường chỉ tốn vài phép bit, và dùng được ngay làm khóa
 # bảng chuyển vị.
 def with_wall(blocked, o, r, c):
-    """blocked sau khi thêm tường (o, r, c)."""
+    """Thêm một bức tường vào tập tường dạng bitboard.
+
+    Đầu vào: blocked - bộ 4 bitboard "đi được"; (o, r, c) - bức tường cần thêm.
+    Đầu ra: bộ 4 bitboard mới (không sửa blocked cũ).
+    """
     up, down, left, right = blocked
     a = r * SIZE + c
     if o == "H":     # chặn đi xuống từ (r,c),(r,c+1) và đi lên từ hai ô ngay dưới
         bits = 3 << a
         return up & ~(bits << SIZE), down & ~bits, left, right
-    bits = (1 << a) | (1 << (a + SIZE))   # V: chặn sang phải từ (r,c),(r+1,c), sang trái từ hai ô bên phải
+    # V: chặn sang phải từ (r, c), (r + 1, c) và sang trái từ hai ô bên phải
+    bits = (1 << a) | (1 << (a + SIZE))
     return up, down, left & ~(bits << 1), right & ~bits
 
 
 def blocked_from(hw, vw):
+    """Dựng tập tường dạng bitboard từ danh sách tường của observation.
+
+    Đầu vào: hw, vw - tập tường ngang / dọc dạng {(r, c)}.
+    Đầu ra: bộ 4 bitboard "đi được" (lên, xuống, trái, phải).
+    """
     blocked = OPEN0
     for r, c in hw:
         blocked = with_wall(blocked, "H", r, c)
@@ -193,8 +183,12 @@ def blocked_from(hw, vw):
 
 # ------------------------------------------------------- 3. Luật chơi
 def flood(reach, d, target, up, down, left, right):
-    """BFS bằng bitboard. reach = tập ô đã tới được sau d bước; mỗi vòng loang cả tập thêm một
-    bước theo 4 hướng. Trả số bước ít nhất để chạm một ô của target, -1 nếu bị bít."""
+    """BFS bằng bitboard: mỗi vòng loang cả tập ô thêm một bước theo 4 hướng.
+
+    Đầu vào: reach - bitboard các ô đã tới được sau d bước; target - bitboard ô đích;
+             up, down, left, right - 4 bitboard "đi được".
+    Đầu ra: số bước ít nhất để chạm một ô của target, -1 nếu bị bít.
+    """
     while not reach & target:
         nxt = (reach | ((reach & up) >> 9) | ((reach & down) << 9)
                | ((reach & left) >> 1) | ((reach & right) << 1))
@@ -206,12 +200,20 @@ def flood(reach, d, target, up, down, left, right):
 
 
 def bfs_dist(start, goal_row, up, down, left, right):
-    """Số bước ít nhất từ ô start tới goal_row (bỏ qua quân), -1 nếu bị bít."""
+    """Tính số bước ít nhất từ một ô tới hàng đích (bỏ qua quân cờ).
+
+    Đầu vào: start - ô xuất phát; goal_row - hàng đích; up, down, left, right - tập tường.
+    Đầu ra: số bước, -1 nếu bị bít đường.
+    """
     return flood(1 << start, 0, ROW_BITS[goal_row], up, down, left, right)
 
 
 def reach_steps(start, blocked, steps):
-    """reach[k] = bitboard các ô tới được từ start trong <= k bước (k = 0..steps)."""
+    """Loang từ một ô ra một số bước cố định.
+
+    Đầu vào: start - ô xuất phát; blocked - tập tường; steps - số bước cần loang.
+    Đầu ra: list reach, reach[k] = bitboard các ô tới được trong <= k bước (k = 0..steps).
+    """
     up, down, left, right = blocked
     cur = 1 << start
     reach = [cur]
@@ -222,15 +224,17 @@ def reach_steps(start, blocked, steps):
 
 
 def dist_after_wall(reach, i, a, layers, walled):
-    """Khoảng cách mới tới đích sau khi thêm một bức tường chặn bước thứ i của đường đi, mà
-    KHÔNG phải BFS lại từ đầu. Tường nào cũng nằm giữa 4 ô a, a+1, a+9, a+10 (a = ô góc trên
-    trái) nên chỉ làm đổi khoảng cách ở "phía sau" 4 ô đó:
-    - Phía xuất phát: reach = reach_steps khi chưa có tường. Nếu cả 4 ô đều cách điểm xuất
-      phát >= i bước thì i bước loang đầu không đổi -> loang tiếp từ reach[i].
-    - Phía đích: layers = goal_layers khi chưa có tường. Gọi k = khoảng cách tới đích nhỏ nhất
-      trong 4 ô; các ô ở lớp k trở xuống giữ nguyên khoảng cách -> chỉ cần loang tới khi chạm
-      lớp k rồi cộng k.
-    Nhờ vậy mỗi lần thử tường chỉ loang vài bước quanh bức tường. walled = tập tường mới."""
+    """Tính khoảng cách tới đích sau khi thêm một bức tường mà không BFS lại từ đầu.
+
+    Tường nào cũng nằm giữa 4 ô a, a+1, a+9, a+10 nên chỉ đổi khoảng cách "phía sau" 4 ô đó:
+    phía xuất phát, i bước loang đầu không đổi (loang tiếp từ reach[i]); phía đích, các ô ở
+    lớp k trở xuống giữ nguyên (loang tới lớp k rồi cộng k, k = lớp gần đích nhất của 4 ô).
+
+    Đầu vào: reach - kết quả reach_steps khi chưa có tường; i - bước đầu tiên của đường đi bị
+             tường chặn; a - ô góc trên trái của tường; layers - goal_layers khi chưa có tường;
+             walled - tập tường đã thêm bức tường đó.
+    Đầu ra: khoảng cách mới, -1 nếu bị bít đường.
+    """
     square = 1539 << a                         # 1539 = 0b11_0000000_11: bit của 4 ô quanh tường
     if i and reach[i - 1] & square:
         i = 0
@@ -242,13 +246,20 @@ def dist_after_wall(reach, i, a, layers, walled):
 
 
 def distance(start, goal_row, blocked):
-    """Số bước ít nhất tới goal_row với tập tường blocked."""
+    """Tính số bước ít nhất từ start tới goal_row.
+
+    Đầu vào: start - ô xuất phát; goal_row - hàng đích; blocked - tập tường.
+    Đầu ra: số bước, -1 nếu bị bít đường.
+    """
     return bfs_dist(start, goal_row, *blocked)
 
 
 def goal_layers(goal_row, blocked):
-    """Loang NGƯỢC từ hàng đích: layers[d] = bitboard các ô cách goal_row đúng d bước.
-    Tính một lần cho mỗi (đích, tập tường) là biết khoảng cách của MỌI ô."""
+    """Loang ngược từ hàng đích để biết khoảng cách của mọi ô cùng lúc.
+
+    Đầu vào: goal_row - hàng đích; blocked - tập tường.
+    Đầu ra: list layers, layers[d] = bitboard các ô cách goal_row đúng d bước.
+    """
     up, down, left, right = blocked
     reach = frontier = ROW_BITS[goal_row]
     layers = [frontier]
@@ -264,7 +275,11 @@ def goal_layers(goal_row, blocked):
 
 
 def layer_index(layers, c):
-    """Khoảng cách từ ô c tới đích theo goal_layers (-1 nếu không tới được)."""
+    """Tra khoảng cách của một ô trong kết quả goal_layers.
+
+    Đầu vào: layers - kết quả goal_layers; c - ô cần tra.
+    Đầu ra: khoảng cách từ c tới đích, -1 nếu không tới được.
+    """
     bit = 1 << c
     for d, layer in enumerate(layers):
         if layer & bit:
@@ -273,8 +288,12 @@ def layer_index(layers, c):
 
 
 def shortest_path(start, d, layers, blocked, max_steps=N):
-    """Một đường ngắn nhất (list ô, tối đa max_steps bước) từ start (đang cách đích d bước):
-    mỗi bước sang một ô kề thuộc lớp gần đích hơn một bậc (layers = goal_layers)."""
+    """Dựng một đường ngắn nhất: mỗi bước sang ô kề thuộc lớp gần đích hơn một bậc.
+
+    Đầu vào: start - ô xuất phát (cách đích d bước); layers - kết quả goal_layers;
+             blocked - tập tường; max_steps - số bước tối đa cần dựng.
+    Đầu ra: list các ô trên đường đi, bắt đầu từ start.
+    """
     path = [start]
     a = start
     for i in range(d - 1, max(d - 1 - max_steps, -1), -1):
@@ -288,7 +307,12 @@ def shortest_path(start, d, layers, blocked, max_steps=N):
 
 
 def legal_moves(me, opp, blocked):
-    """Giống Arena: đi 1 ô; nhảy qua đối thủ; đi chéo khi phía sau bị chặn."""
+    """Liệt kê nước đi hợp lệ như Arena: đi 1 ô, nhảy qua đối thủ, đi chéo khi sau lưng
+    đối thủ bị chặn.
+
+    Đầu vào: me - ô của người đi; opp - ô của đối thủ; blocked - tập tường.
+    Đầu ra: list các ô đến được (đã sắp xếp).
+    """
     out = set()
     for k in range(4):
         if not (blocked[k] >> me) & 1:        # ra ngoài bàn hoặc bị tường chặn
@@ -306,7 +330,11 @@ def legal_moves(me, opp, blocked):
 
 
 def wall_fits(o, r, c, hw, vw):
-    """Không chồng lấn/cắt tường cũ (chưa kiểm tra việc bít đường)."""
+    """Kiểm tra bức tường có nằm trong bàn và không chồng lấn / cắt ngang tường cũ.
+
+    Đầu vào: (o, r, c) - bức tường cần đặt; hw, vw - tập tường ngang / dọc hiện có.
+    Đầu ra: True nếu đặt được (chưa kiểm tra việc bít đường).
+    """
     if not (0 <= r < SIZE - 1 and 0 <= c < SIZE - 1):
         return False
     if o == "H":
@@ -317,8 +345,12 @@ def wall_fits(o, r, c, hw, vw):
 
 
 def walls_on_path(path):
-    """Các tường chặn ít nhất một bước của đường đi: dict {(o, r, c): i} với i = bước đầu tiên
-    của đường bị tường đó chặn (dict giữ thứ tự thêm vào: tường gần đầu đường trước)."""
+    """Liệt kê các bức tường chặn ít nhất một bước của đường đi.
+
+    Đầu vào: path - list ô của đường đi.
+    Đầu ra: dict {(o, r, c): i}, i = bước đầu tiên bị tường đó chặn; tường gần đầu đường
+            đứng trước.
+    """
     out = {}
     for i in range(len(path) - 1):
         for w in EDGE_WALLS[path[i], path[i + 1]]:
@@ -328,9 +360,13 @@ def walls_on_path(path):
 
 
 def vulnerability(start, goal_row, blocked, d0, layers):
-    """Số bước tối đa một bức tường (trên vài bước đầu của đường ngắn nhất)
-    làm người đứng ở start phải đi thêm. Không tính tường bít đường.
-    layers = goal_layers(goal_row, blocked); d0 = khoảng cách hiện tại."""
+    """Tính "độ dễ bị chặn": một bức tường đặt trên VULN_STEPS bước đầu của đường ngắn nhất
+    làm người đứng ở start phải đi thêm tối đa bao nhiêu bước.
+
+    Đầu vào: start - ô của người chơi; goal_row - hàng đích; blocked - tập tường;
+             d0 - khoảng cách hiện tại; layers - goal_layers(goal_row, blocked).
+    Đầu ra: số bước đi thêm lớn nhất (0 nếu không tường nào làm chậm; bỏ qua tường bít đường).
+    """
     path = shortest_path(start, d0, layers, blocked, VULN_STEPS)
     reach = reach_steps(start, blocked, len(path) - 1)
     down, right = blocked[1], blocked[3]
@@ -349,9 +385,14 @@ def vulnerability(start, goal_row, blocked, d0, layers):
 
 
 def defensive_walls(me, pos, hw, vw, blocked, wl, dist, goals):
-    """Tường phòng thủ (chỉ xét ở gốc): tìm các bức tường đối thủ có thể đặt làm
-    mình đi thêm >= 2 bước, rồi đề xuất tường của mình chiếm chỗ/cắt ngang vị trí đó
-    (tường chồng lấn hoặc giao nhau thì không đặt được) mà không làm mình chậm đi."""
+    """Tìm tường phòng thủ (chỉ dùng ở gốc): chiếm chỗ hoặc cắt ngang vị trí của những bức
+    tường đối thủ có thể đặt để làm mình đi thêm >= 2 bước.
+
+    Đầu vào: me - mình; pos, wl, dist, goals - trạng thái hai người chơi; hw, vw, blocked -
+             tập tường.
+    Đầu ra: list nút con dạng (điểm thứ tự, action, pos, hw, vw, blocked, wl, dist) cho các
+            tường phòng thủ không làm mình chậm đi.
+    """
     q = 1 - me
     if wl[me] == 0 or wl[q] == 0:
         return []
@@ -391,7 +432,12 @@ def defensive_walls(me, pos, hw, vw, blocked, wl, dist, goals):
 
 # ------------------------------------------------------- 4. Đánh giá
 def side_value(d_me, d_opp, walls_me):
-    """Giá trị thế cờ của một bên = tổng 3 ô tra bảng (chưa tính vuln)."""
+    """Tính giá trị thế cờ của một bên bằng tổng 3 ô tra bảng dist, walls, lead.
+
+    Đầu vào: d_me, d_opp - số bước tới đích của bên đó và của đối phương; walls_me - số tường
+             bên đó còn.
+    Đầu ra: giá trị (chưa tính độ dễ bị chặn).
+    """
     w = WEIGHTS
     lead = d_opp - d_me
     if lead > LEAD_CAP:
@@ -404,8 +450,12 @@ def side_value(d_me, d_opp, walls_me):
 
 
 def evaluate(p, dist, wl, vuln=(0, 0)):
-    """Điểm trạng thái nhìn từ người chơi p (người sắp đi).
-    vuln[i] = độ dễ bị chặn của người chơi i (0 nếu đối phương hết tường)."""
+    """Chấm điểm thế cờ nhìn từ người sắp đi.
+
+    Đầu vào: p - người sắp đi; dist, wl - số bước tới đích và số tường còn của hai người;
+             vuln - độ dễ bị chặn của hai người (0 nếu đối phương hết tường).
+    Đầu ra: điểm (dương = có lợi cho p).
+    """
     q = 1 - p
     dp, dq = dist[p], dist[q]
     w = WEIGHTS
@@ -420,22 +470,32 @@ def evaluate(p, dist, wl, vuln=(0, 0)):
 
 
 # ------------------------------------------------------- 5. Tìm kiếm
-EXACT, LOWER, UPPER = 0, 1, 2
+EXACT, LOWER, UPPER = 0, 1, 2    # loại giá trị trong bảng chuyển vị: đúng / chặn dưới / chặn trên
 
 
 class Search:
+    """Một lần tìm kiếm alpha-beta cho một nước đi, kèm các bảng nhớ dùng chung trong lần đó."""
+
     def __init__(self, goals, deadline):
+        """Khởi tạo bảng chuyển vị, cache và bảng killer/history rỗng.
+
+        Đầu vào: goals - hàng đích của hai người; deadline - thời điểm (perf_counter) phải dừng.
+        """
         self.goals = goals
         self.deadline = deadline
-        self.tt = {}
+        self.tt = {}        # bảng chuyển vị: thế cờ -> (độ sâu, giá trị, loại, nước tốt nhất)
         self.nodes = 0
-        self.vcache = {}
+        self.vcache = {}    # (ô, người chơi, tập tường) -> độ dễ bị chặn
         self.lcache = {}    # (đích, tập tường) -> goal_layers
         self.killers = {}   # tầng -> 2 nước gây cắt tỉa gần nhất
         self.history = {}   # (người chơi, nước) -> tổng depth^2 các lần gây cắt tỉa
 
     def layers_to(self, goal_row, blocked):
-        """goal_layers có cache: rất nhiều nút trong cây chung một tập tường."""
+        """Lấy goal_layers có cache (rất nhiều nút trong cây chung một tập tường).
+
+        Đầu vào: goal_row - hàng đích; blocked - tập tường.
+        Đầu ra: kết quả goal_layers(goal_row, blocked).
+        """
         key = (goal_row, blocked)
         layers = self.lcache.get(key)
         if layers is None:
@@ -443,7 +503,11 @@ class Search:
         return layers
 
     def vuln(self, i, pos, blocked, wl, dist):
-        """Độ dễ bị chặn của người chơi i (lưu cache theo ô + tường)."""
+        """Lấy độ dễ bị chặn của người chơi i, có cache theo ô + tập tường.
+
+        Đầu vào: i - người chơi; pos, blocked, wl, dist - trạng thái thế cờ.
+        Đầu ra: độ dễ bị chặn (0 nếu đối phương hết tường hoặc i đã về đích).
+        """
         if wl[1 - i] == 0 or dist[i] == 0:
             return 0
         key = (pos[i], i, blocked)
@@ -455,10 +519,15 @@ class Search:
         return v
 
     def leaf(self, p, pos, blocked, wl, dist, alpha, beta):
-        """Đánh giá lá: điểm = base + wq * vuln[q] - wp * vuln[p], với vuln và hai hệ số đều >= 0.
-        vuln là phần đắt nhất (mỗi cái ~10 lần BFS) nên tính LƯỜI: nếu base đã <= alpha thì
-        chỉ vuln[q] mới cứu được -> tính nó trước, vẫn <= alpha thì trả luôn (đó là chặn trên
-        của điểm thật, đủ để alpha-beta cắt tỉa) khỏi tính vuln[p]. Tương tự khi base >= beta."""
+        """Đánh giá nút lá: điểm = base + wq * vuln[q] - wp * vuln[p] (vuln, wq, wp >= 0).
+
+        vuln đắt nhất (~10 lần BFS mỗi cái) nên tính lười: nếu base <= alpha thì chỉ vuln[q]
+        mới kéo điểm lên được -> tính nó trước; vẫn <= alpha thì trả luôn (chặn trên của điểm
+        thật, đủ để cắt tỉa) mà khỏi tính vuln[p]. Tương tự khi base >= beta.
+
+        Đầu vào: p - người sắp đi; pos, blocked, wl, dist - trạng thái; alpha, beta - cửa sổ.
+        Đầu ra: điểm nhìn từ p (có thể chỉ là chặn trên/dưới khi nằm ngoài cửa sổ).
+        """
         base = evaluate(p, dist, wl)
         q = 1 - p
         wq, wp = WEIGHTS["vuln"][wl[p]], WEIGHTS["vuln"][wl[q]]   # hệ số của vuln[q], vuln[p]
@@ -472,10 +541,16 @@ class Search:
             if low >= beta:
                 return low
             return low + wq * self.vuln(q, pos, blocked, wl, dist)
-        return base + wq * self.vuln(q, pos, blocked, wl, dist) - wp * self.vuln(p, pos, blocked, wl, dist)
+        return (base + wq * self.vuln(q, pos, blocked, wl, dist)
+                - wp * self.vuln(p, pos, blocked, wl, dist))
 
     def children(self, p, pos, hw, vw, blocked, wl, dist):
-        """List (thứ tự, action, pos, hw, vw, blocked, wl, dist) hoặc ('WIN', ô)."""
+        """Sinh các nút con: mọi nước đi + tối đa WALL_CANDIDATES tường làm đối thủ chậm đi.
+
+        Đầu vào: p - người sắp đi; pos, hw, vw, blocked, wl, dist - trạng thái.
+        Đầu ra: (list nút con (điểm thứ tự, action, pos, hw, vw, blocked, wl, dist) đã xếp
+                giảm dần, None), hoặc ("WIN", ô) nếu đi một bước là về đích.
+        """
         q = 1 - p
         goal = self.goals[p]
         layers = self.layers_to(goal, blocked)
@@ -495,8 +570,8 @@ class Search:
             layers_q = self.layers_to(goal_q, blocked)
             path = shortest_path(pos[q], dist[q], layers_q, blocked)
             reach = reach_steps(pos[q], blocked, len(path) - 1)
-            # Tường chặn một đường ngắn nhất của chính mình: chỉ những tường này mới có thể làm
-            # mình chậm đi / bít đường mình -> các tường khác khỏi cần BFS cho mình.
+            # Chỉ tường chặn đường ngắn nhất của chính mình mới có thể làm mình chậm đi
+            # -> các tường khác khỏi cần BFS cho mình.
             own = walls_on_path(shortest_path(pos[p], dist[p], layers, blocked))
             for (o, r, c), i in walls_on_path(path).items():
                 if not wall_fits(o, r, c, hw, vw):
@@ -524,8 +599,13 @@ class Search:
         return out, None
 
     def make_child(self, p, pos, hw, vw, blocked, wl, dist, act):
-        """Dựng đúng một nút con cho nước act (nước TT) mà không sinh cả danh sách.
-        Trả None nếu nước không còn hợp lệ / không thuộc tập ứng viên."""
+        """Dựng đúng một nút con cho nước act (nước lấy từ bảng chuyển vị) mà không sinh cả
+        danh sách nút con.
+
+        Đầu vào: p - người sắp đi; pos, hw, vw, blocked, wl, dist - trạng thái; act - nước đi.
+        Đầu ra: (pos, hw, vw, blocked, wl, dist) sau nước đi, hoặc None nếu nước không còn
+                hợp lệ / không thuộc tập ứng viên.
+        """
         q = 1 - p
         kind, data = act
         if kind == "move":
@@ -557,6 +637,12 @@ class Search:
         return pos, nh, nv, nb, nwl, nd
 
     def negamax(self, p, pos, hw, vw, blocked, wl, dist, depth, alpha, beta, ply=1):
+        """Tìm kiếm negamax alpha-beta có bảng chuyển vị, killer, history và PVS.
+
+        Đầu vào: p - người sắp đi; pos, hw, vw, blocked, wl, dist - trạng thái; depth - số tầng
+                 còn phải tìm; alpha, beta - cửa sổ; ply - tầng hiện tại tính từ gốc.
+        Đầu ra: điểm của thế cờ nhìn từ p (ném Timeout nếu quá deadline).
+        """
         self.nodes += 1
         if (self.nodes & 63) == 0 and time.perf_counter() > self.deadline:
             raise Timeout()
@@ -644,6 +730,11 @@ class Search:
 
 
 def to_dict(action):
+    """Đổi nước đi nội bộ sang định dạng hành động của Arena.
+
+    Đầu vào: action - ("move", ô) hoặc ("wall", (o, r, c)).
+    Đầu ra: dict {"type": "move", "to": [r, c]} hoặc {"type": "wall", ...}.
+    """
     kind, data = action
     if kind == "move":
         return {"type": "move", "to": [ROW[data], COL[data]]}
@@ -655,6 +746,14 @@ LAST_INFO = {}   # thông tin lần tìm kiếm gần nhất (độ sâu, số n
 
 
 def choose_action(observation):
+    """Chọn nước đi cho lượt hiện tại (hàm Arena gọi).
+
+    Đào sâu dần alpha-beta tới khi hết TIME_BUDGET rồi trả nước tốt nhất của độ sâu đã xong;
+    gặp lỗi bất ngờ thì trả nước đi gần đích nhất để không mất lượt.
+
+    Đầu vào: observation - dict trạng thái ván do Arena gửi.
+    Đầu ra: dict hành động: move, wall hoặc pass.
+    """
     deadline = time.perf_counter() + TIME_BUDGET
     try:
         me = observation["player_id"]
@@ -680,10 +779,10 @@ def choose_action(observation):
         # Chỉ giữ ứng viên mà Arena xác nhận hợp lệ (an toàn tuyệt đối).
         legal_m = {cell(*m) for m in observation["legal_moves"]}
         legal_w = {(w["orientation"], w["row"], w["col"]) for w in observation["legal_walls"]}
-        kids = [k for k in kids if (k[1][1] in legal_m if k[1][0] == "move" else k[1][1] in legal_w)]
-        # Hết tường thì chỉ còn đua về đích: lùi/đi ngang không làm tường của đối thủ bớt
-        # nguy hiểm mà mất nhịp. Tìm kiếm có hiệu ứng chẵn/lẻ (độ sâu chẵn thấy lùi tốt hơn,
-        # lẻ thấy bằng nhau) -> không chặn thì bot tiến một bước lùi một bước hàng chục lượt.
+        kids = [k for k in kids
+                if (k[1][1] in legal_m if k[1][0] == "move" else k[1][1] in legal_w)]
+        # Hết tường thì chỉ còn đua về đích: lùi hay đi ngang chỉ mất nhịp (không chặn thì
+        # bot có thể tiến một bước lùi một bước hàng chục lượt).
         if wl[me] <= RUSH_WALLS:
             ahead = [k for k in kids if k[1][0] == "move" and k[7][me] < dist[me]]
             if ahead:
@@ -695,9 +794,8 @@ def choose_action(observation):
                     alpha, cur_best = -float("inf"), None
                     for kid in kids:
                         _, _, npos, nh, nv, nb, nwl, nd = kid
-                        # Điểm ở gốc = giá trị tìm kiếm + thưởng tiến bộ. Khi đối thủ còn nhiều
-                        # tường, mọi nước có thể hòa điểm (tiến lên kiểu gì cũng "sẽ bị chặn")
-                        # -> không có thưởng thì bot đứng đi qua đi lại, mất nhịp.
+                        # Điểm gốc = giá trị tìm kiếm + thưởng tiến bộ nhỏ: khi mọi nước hòa
+                        # điểm thì chọn nước tiến gần đích, không đi qua đi lại.
                         bonus = PROGRESS_BONUS * (dist[me] - nd[me])
                         target = alpha - bonus           # giá trị tìm kiếm cần vượt
                         if PVS and cur_best is not None:
@@ -710,9 +808,8 @@ def choose_action(observation):
                         if v > target:
                             alpha, cur_best = v + bonus, kid
                 except Timeout:
-                    # Hết giờ giữa chừng: kids[0] là nước tốt nhất của độ sâu trước và được xét
-                    # trước tiên. Nếu đã có nước khác vượt qua nó ở độ sâu mới này thì nước đó
-                    # tốt hơn thật (đã được chứng minh) -> dùng luôn, không bỏ phí (như Stockfish).
+                    # Hết giờ giữa chừng: kids[0] là nước tốt nhất của độ sâu trước, xét đầu
+                    # tiên; nước nào đã vượt nó ở độ sâu mới thì tốt hơn thật -> dùng luôn.
                     if cur_best is not None and cur_best is not kids[0]:
                         best = cur_best
                     break

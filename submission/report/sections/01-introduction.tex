@@ -1,0 +1,54 @@
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{The game.}
+Wrongway is played on a $9\times9$ grid. Player~0 starts at $(8,4)$ and must reach row~0;
+player~1 starts at $(0,4)$ and must reach row~8. Player~0 moves first.
+On each turn a player does one of three things:
+\begin{itemize}
+  \item moves one square orthogonally. A player may jump over an adjacent opponent, or step
+        diagonally around them when the square behind is blocked;
+  \item places one of their ten two-cell walls. Walls may not overlap or cross, and after the
+        wall both players must still have a path to their goal;
+  \item passes.
+\end{itemize}
+The first player to reach the goal row wins. A game is drawn after 500 single turns.
+A season is a round robin of two games per pair, one on each side, always from the standard
+starting position, with 3/1/0 points for a win, draw or loss.
+The rules are those of Quoridor plus the \code{pass} action.
+
+\paragraph{Constraints.}
+The submission is one Python~3.9+ file using only the standard library. Its function
+\code{choose\_action(observation)} returns a move, a wall or a pass. Each call has \SI{1}{\second}
+including communication, measured on a Colab CPU. A timeout, an exception or an illegal action
+costs the turn. Memory is limited to \SI{128}{\mega\byte}, and the agent cannot rely on global
+state because the arena may restart it.
+
+\paragraph{Research question.}
+\emph{Under a one-second, pure-Python budget, which combination of search and evaluation gives
+the strongest Wrongway agent, and how can candidate versions be compared reliably enough to
+choose among them?}
+
+\paragraph{Contributions.}
+All code in the submitted file was written by our team, with the help of an AI coding assistant
+(\cref{sec:pipeline}).
+\begin{itemize}
+  \item A negamax alpha-beta engine on 81-bit bitboards. Its incremental shortest-path updates
+        and move ordering make it about 7$\times$ faster than our first integer-cell engine at
+        equal depth (\cref{sec:agent}).
+  \item A symmetric, table-based evaluation whose 428 entries were initialised from evolved
+        linear weights and then learned by TD-leaf($\lambda$) self-play
+        (\cref{sec:eval,sec:learning}).
+  \item A measured diagnosis that depth, not evaluation detail, is the bottleneck, and that an
+        asymmetric evaluation had created an odd/even-depth bias of about 9.5 points
+        (\cref{sec:process}).
+  \item A reproducible evaluation protocol: paired side-swapped games, random openings plus
+        standard starts, and simulated grading-machine speed. With it we judged roughly 100
+        hand-designed variants and about 500 evolved mutants (\cref{sec:pipeline,sec:evaluation}).
+\end{itemize}
+
+\paragraph{Roadmap.}
+\Cref{sec:agent} explains the agent (requirement~1 of the brief).
+\Cref{sec:process} describes the development process and the AI-assisted variant pipeline
+(requirement~2). \Cref{sec:evaluation} gives the evaluation method and results (requirement~3).
+\Cref{sec:conclusion} discusses limitations and concludes.

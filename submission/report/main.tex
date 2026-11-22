@@ -1,0 +1,63 @@
+% Wrongway Arena agent report (single-column A4)
+\documentclass[11pt,a4paper]{article}
+
+% ---------- encoding & fonts
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ---------- layout
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{setspace}\setstretch{1.08}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.2ex plus .3ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{1ex plus .2ex}{0.4ex}
+
+% ---------- math, units, tables, figures
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\sisetup{detect-all, per-mode=symbol}
+\usepackage{booktabs,tabularx,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}\setlist{noitemsep,topsep=2pt}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% ---------- references
+\usepackage[round,authoryear]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\usepackage[capitalise,nameinlink]{cleveref}  % load last
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{A Bitboard Alpha-Beta Agent with a Self-Play-Learned Evaluation for Wrongway}\\[2pt]
+       \large AI Arena project report}
+\author{Team leader: \textless Full name\textgreater{} (\textless Student ID\textgreater)\\
+        Members: \textless Full name\textgreater{} (\textless Student ID\textgreater),
+        \textless Full name\textgreater{} (\textless Student ID\textgreater)\\[2pt]
+        \small Faculty of Information Technology, VNU-HCM University of Science --- November 2026}
+\date{}
+
+\begin{document}
+\maketitle
+
+\input{sections/00-abstract}
+\input{sections/01-introduction}
+\input{sections/02-agent}
+\input{sections/03-development}
+\input{sections/04-evaluation}
+\input{sections/05-conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\appendix
+\input{sections/99-appendix}
+
+\end{document}

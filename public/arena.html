@@ -408,7 +408,7 @@
         s.appendChild(grpUp);
       }
 
-      const fallback = i === 0 ? "builtin:MSSV" : (upList.length ? upList[0].id : "builtin:wall_builder");
+      const fallback = i === 0 ? "builtin:MSSV" : (upList.length ? upList[0].id : "builtin:dtest2");
       s.value = keep && sel[i] && allBots.some(b => b.id === sel[i]) ? sel[i] : fallback;
     }
 

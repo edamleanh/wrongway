@@ -1,0 +1,28 @@
+\section{Reproducing the results}
+\label{app:repro}
+All commands run from the project root. The arena code is the instructor's, unmodified.
+\begin{itemize}
+  \item Rules and timing tests: \code{python -m unittest discover tests}
+  \item Submission check (both sides, sample bots, longest move):\\
+        \code{python tools/check\_submission.py TeamLeaderStudentID.py}
+  \item Gauntlet (paired seeds, side swap, two random opening plies):\\
+        \code{python training/gauntlet.py <bot> <opponents...>}\\
+        \code{\ \ \ \ --pairs 20 --workers 6 --seed 2026}\\
+        add \code{--opening 0} for the standard start.
+  \item Simulated grading speed: a copy of the agent with \code{TIME\_BUDGET = 0.275}.
+  \item Training: \code{training/evolve.py} (evolution of the linear evaluation),
+        \code{training/td\_learn.py} (TD-leaf($\lambda$) on the tables; writes the
+        \code{WEIGHTS} block).
+\end{itemize}
+
+\section{Statement on the use of AI tools and third-party code}
+\begin{itemize}
+  \item An AI coding assistant (Claude Code, Anthropic) was used to implement variants, run
+        experiments and draft documentation, as described in \cref{sec:pipeline}. The team
+        reviewed all submitted code and can explain every part of it.
+  \item No code from other students or from third-party programs is included in the
+        submission.
+  \item The wrongway.app Hard AI was run only offline, for private testing, with the permission
+        of its author; its code is not distributed with this work.
+  \item The MCTS program of \citet{gorisanson} (MIT licence) was used only as a test opponent.
+\end{itemize}

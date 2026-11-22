@@ -19,9 +19,13 @@ HIDDEN = {
     "TEMPLATE",      # file mẫu của giảng viên
     "dev",           # bản thử nghiệm đang sửa
     "bot",           # bản port AI của wrongway.app: chỉ kiểm thử riêng, không được công khai
+    # Bot mẫu của giảng viên: quá yếu cho đấu trường, nhưng giữ file vì check_submission.py cần
+    "greedy", "random_agent", "wall_builder",
+    # Bot yếu của nhóm/lớp: giữ nguyên file (vẫn dùng làm đối thủ khi đo), chỉ ẩn khỏi đấu trường
+    "Phat_test1", "Chubee", "duytest", "HuynhDuy_test2", "agent", "chuong-alpha-beta", "Challenger",
 }
 DESCRIPTIONS = {     # mô tả cho file không có docstring phù hợp (ưu tiên hơn docstring)
-    "MSSV": "Bot của mình (v4): alpha-beta + trọng số học bằng tiến hóa + tường phòng thủ",
+    "MSSV": "Bot của mình (v9): alpha-beta + bảng đánh giá học TD-leaf + tường phòng thủ",
     "az_agent_std1": "AlphaZero std1 (iter000): MSSV + mạng policy/value nhúng sẵn",
     "HuynhDuy_test2": "Bot của HuynhDuy: dựng hàng tường + cột tường để nhốt đối thủ",
     "wall_builder": "Bot mẫu: đặt tường theo BFS",

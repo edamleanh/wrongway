@@ -505,7 +505,7 @@
   bindSeg("speed-seg", "speed");
 
   // ---------- Bot Selection & Modal
-  const selectedBots = new Set(["MSSV", "greedy", "wall_builder", "random_agent"]);
+  const selectedBots = new Set(["MSSV", "dtest2", "Phat_test2", "v7_linear"]);
 
   function allAvailableBots() {
     const list = (library.bots || []).map(b => ({ id: b.id, name: b.name, desc: b.description || "", uploaded: false }));

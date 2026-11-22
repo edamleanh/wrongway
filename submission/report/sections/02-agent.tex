@@ -1,0 +1,217 @@
+\section{The agent: key idea and design}
+\label{sec:agent}
+
+\paragraph{Key idea.}
+Wrongway is a race in which a single well-placed wall can add eight or more steps to a path.
+A move only looks good or bad once the opponent's best wall replies have been seen.
+We therefore treat the game as a classical adversarial search problem
+\citep{knuth1975alphabeta}. The design has two parts:
+\begin{enumerate}
+  \item \textbf{Search as deep as possible within the time limit.} Every component is judged
+        by how much depth it buys per second.
+  \item \textbf{A cheap but well-calibrated evaluation} at the leaves. Its parameters are
+        learned from self-play rather than hand-tuned.
+\end{enumerate}
+\Cref{fig:pipeline} shows what happens in one call to \code{choose\_action}.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[node distance=3mm and 4mm, every node/.style={font=\small},
+  box/.style={draw, rounded corners, align=center, minimum height=9mm, fill=gray!8},
+  arr/.style={-{Stealth[length=2mm]}}]
+  \node[box] (obs) {Observation\\(positions, walls)};
+  \node[box, right=of obs] (bb) {Bitboards\\4 move masks};
+  \node[box, right=of bb] (cand) {Root candidates\\moves + 8 walls\\+ defensive walls};
+  \node[box, right=of cand] (id) {Iterative deepening\\negamax $\alpha$-$\beta$\\depth $1..10$};
+  \node[box, right=of id] (out) {Best move of the\\last finished depth};
+  \node[box, below=6mm of id] (leaf) {Leaf: table evaluation\\(learned by TD-leaf)};
+  \draw[arr] (obs) -- (bb); \draw[arr] (bb) -- (cand); \draw[arr] (cand) -- (id);
+  \draw[arr] (id) -- (out); \draw[arr] (id) -- (leaf);
+  \draw[arr] (leaf.east) -| node[pos=0.25, above, font=\scriptsize]{stop at \SI{0.55}{\second}} (out.south);
+\end{tikzpicture}
+\caption{Decision pipeline for one move. All state is rebuilt from the observation, so the agent
+keeps working if the arena restarts it.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Board representation with bitboards}
+\label{sec:bitboard}
+Squares are numbered $i = 9r + c$. A set of squares is one Python integer whose bit~$i$ is
+square~$i$, as in chess engines such as Stockfish \citep{stockfish}. The walls of a position are
+stored as four ``can move'' masks (up, down, left, right): bit~$i$ is set if a pawn on $i$ can
+step in that direction. Adding a wall clears two bits in two masks. One step of breadth-first
+search (BFS) for all squares at once is then
+\begin{equation}
+  R' = R \;\lor\; ((R \land U) \gg 9) \;\lor\; ((R \land D) \ll 9)
+       \;\lor\; ((R \land L) \gg 1) \;\lor\; ((R \land Ri) \ll 1),
+  \label{eq:flood}
+\end{equation}
+where $R$ is the reached set and $U, D, L, Ri$ are the masks.
+Profiling had shown that distance computation took 70\% of the run time. Three further tricks
+reduce the number of BFS calls:
+\begin{enumerate}
+  \item \textbf{Backward layers.} One backward flood from the goal row gives the distance of
+        every square (\code{goal\_layers}). It is cached per (goal, wall set) because many tree
+        nodes share a wall set.
+  \item \textbf{Incremental update after a wall} (\code{dist\_after\_wall}). A wall only
+        changes distances ``behind'' its four surrounding squares. We restart the forward flood
+        at the step where the path first touches those squares and stop at the first backward
+        layer that is unaffected. Re-evaluating a wall therefore costs a few iterations instead
+        of a full BFS.
+  \item \textbf{Skipping our own BFS.} Walls that do not touch our own shortest path cannot
+        lengthen it, so no BFS is run for us.
+\end{enumerate}
+A unit test checks that the shortcuts match a full BFS on thousands of random positions.
+
+\subsection{Search}
+\label{sec:search}
+\paragraph{Candidate moves.}
+A node offers every legal pawn move. It also offers up to $K = 8$ walls that lie on the
+opponent's shortest path and actually lengthen it, ranked by $\Delta d_{\text{opp}} -
+\Delta d_{\text{own}}$. Restricting walls to the opponent's path keeps the branching factor near
+12 instead of up to 132.
+At the root only, two extra kinds of candidate are added:
+\begin{itemize}
+  \item \emph{Defensive walls.} For each of the three most dangerous walls the opponent could
+        place (each costing us at least two steps), we try our own wall that overlaps or crosses
+        that position, so the opponent can no longer place it.
+  \item \emph{Arena check.} Every root candidate is checked against the arena's
+        \code{legal\_moves}/\code{legal\_walls} lists, so an illegal action is impossible.
+\end{itemize}
+
+\paragraph{Negamax with iterative deepening.}
+The root searches depth $1, 2, \dots, 10$ until a \SI{0.55}{\second} deadline. This leaves margin
+for the slower grading CPU and for inter-process communication. The tree checks the clock every
+64 nodes and aborts with an exception. If the deadline falls in the middle of an iteration, a
+root move that has already been \emph{proved} better than the previous best (which is searched
+first) is used rather than discarded.
+
+\paragraph{Move ordering.}
+Alpha-beta prunes most when the best move comes first. We use four standard techniques:
+\begin{itemize}
+  \item a transposition table keyed by (side, both pawns, both wall counts, wall masks) whose
+        stored best move is searched \emph{before} the other children are generated. When it
+        causes a cutoff, all the wall BFS calls of that node are skipped;
+  \item two killer moves per ply \citep{akl1977killer};
+  \item the history heuristic \citep{schaeffer1989history} as a tie-breaker;
+  \item principal-variation search with null windows \citep{marsland1982pvs}.
+\end{itemize}
+Together these make the engine $1.3\times$ faster at depth 5--6, with the same move chosen in
+45/45 test positions.
+
+\paragraph{Lazy leaf evaluation.}
+The ``vulnerability'' term (\cref{sec:eval}) costs about ten BFS calls. At a leaf we first
+compute the cheap part. If it is already below $\alpha$, only the opponent's vulnerability could
+raise the score, so that term is computed first and the other is skipped when $\alpha$ still
+holds (symmetrically for $\beta$).
+
+\paragraph{Root rules found by replay analysis.}
+\begin{itemize}
+  \item \emph{Progress tie-break.} A bonus of $0.001$ per step gained is added at the root
+        only. Without it, positions in which ``every move gets walled later'' produced equal
+        scores and the agent shuffled back and forth for 50 turns while the opponent walked home.
+  \item \emph{Rush when out of walls.} With no walls left, only forward moves are considered.
+        Retreating cannot make the opponent's walls less dangerous.
+\end{itemize}
+
+\Cref{alg:root} summarises the root procedure.
+
+\begin{algorithm}[!htbp]
+\caption{Root procedure of \code{choose\_action} (simplified)}
+\label{alg:root}
+\begin{algorithmic}[1]
+\State build bitboards and distances from the observation; $T_{\text{end}} \gets \text{now} + 0.55$\,s
+\State $C \gets$ moves $\cup$ top-8 walls $\cup$ defensive walls, filtered by the arena's legal lists
+\If{a move in $C$ reaches the goal} \Return it \EndIf
+\If{no walls left} keep only forward moves in $C$ \EndIf
+\State $b \gets C_1$
+\For{$d = 1, \dots, 10$}
+  \State score each $c \in C$ with $-\textsc{Negamax}(c, d-1)$ $+\ 0.001\cdot\text{progress}(c)$, PVS windows
+  \If{deadline hit} use the partially searched winner if it beat $b$; \textbf{break} \EndIf
+  \State $b \gets$ best move; move $b$ to the front of $C$
+\EndFor
+\State \Return $b$ \Comment{any exception $\Rightarrow$ return the shortest-distance legal move}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Evaluation function}
+\label{sec:eval}
+Let $p$ be the player to move and $q$ the opponent. $d_x$ is the shortest-path distance of
+player~$x$ (pawns ignored), $w_x$ their remaining walls, and $u_x$ their
+\emph{vulnerability}: the largest number of extra steps that one wall on the first eight steps
+of their shortest path would cost them. The score seen by $p$ is
+\begin{align}
+  E(p) &= \tau + \sigma\, s + V(d_p, d_q, w_p) - V(d_q, d_p, w_q)
+          + \nu[w_p]\, u_q - \nu[w_q]\, u_p, \label{eq:eval}\\
+  V(d, d', w) &= D[\min(d,40)] + W[w][\min(d',20)] + L[w][\operatorname{clip}(d'-d,-6,6)],
+  \label{eq:side}
+\end{align}
+where $s = +1$ if $w_q = 0$ and $d_p \le d_q$ (an uncatchable race), $s=-1$ in the mirrored
+case, and $s = 0$ otherwise.
+\Cref{tab:features} lists the tables: 428 parameters in total.
+\begin{itemize}
+  \item The \emph{lead} table $L$ teaches the agent to keep walls in reserve when it is far
+        ahead. An earlier version spent nine walls while leading by 9--15 steps and then lost.
+  \item The evaluation is \emph{symmetric}: swapping the players negates $E$ apart from the
+        tempo constant $\tau$. Our earlier linear evaluation was not, which produced the
+        odd/even bias analysed in \cref{sec:process}.
+\end{itemize}
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Lookup tables of the evaluation (\cref{eq:eval,eq:side}).}
+\label{tab:features}
+\begin{tabularx}{\linewidth}{@{}l r X@{}}
+\toprule
+Table & Entries & Meaning \\
+\midrule
+$D[d]$ & 41 & value of being $d$ steps from the goal \\
+$W[w][d']$ & $11\times21$ & value of holding $w$ walls when the opponent is $d'$ steps away \\
+$L[w][\ell]$ & $11\times13$ & bonus for a lead of $\ell\in[-6,6]$ steps while holding $w$ walls \\
+$\nu[w]$ & 11 & weight of the opponent's vulnerability when we hold $w$ walls \\
+$\tau,\ \sigma$ & 2 & tempo for the side to move; safe-race bonus \\
+\midrule
+Total & 428 & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Learning the evaluation}
+\label{sec:learning}
+\paragraph{Stage 1: evolution of a linear evaluation.}
+The first evaluations were linear in seven features. Their weights were found with a $(1+\lambda)$
+evolution strategy \citep{beyer2002es}, with $\lambda = 6$ mutants per generation and
+self-adaptive step size. A mutant replaced the champion only if it:
+\begin{enumerate}
+  \item beat the champion in side-swapped games (score at least 0.55);
+  \item passed a fresh confirmation match;
+  \item was not worse against a pool of older champions and fixed sparring bots.
+\end{enumerate}
+
+\paragraph{Stage 2: TD-leaf($\lambda$) on lookup tables.}
+The linear formula was rewritten exactly as the tables of \cref{tab:features}, so the starting
+point played identically. The tables were then refined with TD-leaf($\lambda$)
+\citep{sutton1988td,baxter2000tdleaf}, as follows:
+\begin{enumerate}
+  \item The agent plays itself using its own negamax at depth 5--6.
+  \item Each position is scored as $v = \operatorname{sigmoid}(E/K)$ at the leaf of the
+        principal variation.
+  \item Every table entry active at that leaf is moved by $\eta\, e_t$, with
+        $e_t = \sum_k \lambda^k (v_{t+k+1} - v_{t+k})$, $\lambda = 0.7$.
+\end{enumerate}
+The run used 20 rounds of 200 games and about 5 minutes per round.
+The learned tables can be read directly. For example, the step from distance 2 to 1 is worth
+about 2.0 points versus about 1.35 far from the goal, and $\nu[w]$ rises from 0.75 with one wall
+to 1.18 with six or seven.
+Because the submission may not read files, the tables are written into the
+\code{WEIGHTS BEGIN/END} block of the source file by the training script.
+
+\subsection{Robustness}
+\begin{itemize}
+  \item The whole body of \code{choose\_action} is wrapped in \code{try/except}. Any failure
+        returns the legal move with the smallest arena-provided distance, never an exception.
+  \item No global state is required.
+  \item Peak memory is 4--6\,MB.
+  \item The longest move measured through the arena is \SI{0.563}{\second} on our laptop, with
+        a \SI{0.55}{\second} budget.
+\end{itemize}
