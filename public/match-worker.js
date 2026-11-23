@@ -100,9 +100,6 @@ spec = importlib.util.spec_from_file_location("uploaded_bot", "/bots/uploaded.py
 uploaded_mod = importlib.util.module_from_spec(spec)
 sys.modules["uploaded_bot"] = uploaded_mod
 spec.loader.exec_module(uploaded_mod)
-if hasattr(uploaded_mod, "MAX_DEPTH"):
-    # Đặt độ sâu vừa phải cho môi trường WebAssembly để tránh treo
-    uploaded_mod.MAX_DEPTH = min(getattr(uploaded_mod, "MAX_DEPTH", 4) or 4, 4)
 
 def _run_uploaded_action(obs_json):
     obs = json.loads(obs_json)
