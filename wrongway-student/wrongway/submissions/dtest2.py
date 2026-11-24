@@ -19,41 +19,28 @@ FEATURE_KEYS = [
 
 # Bộ trọng số khi đi trước (player_id == 0)
 WEIGHTS_FIRST = {
-    "dist_diff": 117.0000,
-    "race_urgency": 121.0500,
-    "wall_diff": 205.7036,
-    "wall_quad": -3.6750,
-    "dag_width_diff": 5.7500,
-    "center_diff": 8.8000,
-    "jump_tempo": 36.2500,
-    "tempo": 44.1383,
-    "vuln_diff": 30.1084,
+    "dist_diff": 120.0000,
+    "race_urgency": 127.2000,
+    "wall_diff": 252.0000,
+    "wall_quad": -6.0000,
+    "dag_width_diff": 6.6000,
+    "center_diff": 9.6000,
+    "jump_tempo": 39.0000,
+    "tempo": 45.6000,
+    "vuln_diff": 36.0000,
 }
 
-# Bộ trọng số khi đi sau (player_id == 1)
 WEIGHTS_SECOND = {
-    "dist_diff": 117.0000,
-    "race_urgency": 121.2422,
-    "wall_diff": 193.8156,
-    "wall_quad": -3.4492,
-    "dag_width_diff": 5.7500,
-    "center_diff": 8.9078,
-    "jump_tempo": 36.2500,
-    "tempo": 43.5434,
-    "vuln_diff": 30.1289,
+    "dist_diff": 120.0000,
+    "race_urgency": 125.4000,
+    "wall_diff": 240.0000,
+    "wall_quad": -5.8000,
+    "dag_width_diff": 7.8000,
+    "center_diff": 9.0000,
+    "jump_tempo": 40.8000,
+    "tempo": 45.0000,
+    "vuln_diff": 39.0000,
 }
-
-# WEIGHTS_SECOND = {
-#     "dist_diff": 120.0000,       # Mốc tiến đích chuẩn (lớn hơn chi phí tường đầu, nhỏ hơn tường cuối)
-#     "race_urgency": 125.0000,    # Áp lực nước rút tàn cuộc
-#     "wall_diff": 200.0000,       # Cân bằng lại giá trị cơ bản của tường
-#     "wall_quad": -3.0000,        # Giảm độ dốc (từ -11.54 về -5.0) để không xả tường bừa ở khai cuộc
-#     "dag_width_diff": 5.0000,   # Khôi phục khả năng đặt tường bóp hẹp hành lang đối thủ
-#     "center_diff": 10.0000,      # Ưu tiên tiến quân kiểm soát cột trung tâm ở khai cuộc
-#     "jump_tempo": 40.0000,       # Sửa dấu âm -> tận dụng nhịp áp sát nhảy qua đầu đối thủ
-#     "tempo": 45.0000,            # Giữ dưới 0.45 * dist_diff để ổn định chẵn/lẻ
-#     "vuln_diff": 40.0000,        # Đủ nhạy với bẫy 2-3 bước nhưng không làm bot sợ tiến quân
-# }
 
 
 # Alias mặc định để tương thích ngược với các module khác import agent.WEIGHTS
