@@ -5,6 +5,9 @@ mở đầu bằng vài nước ngẫu nhiên để các ván khác nhau (bot t�
     python phat-training/gauntlet.py dev MSSV wall_builder greedy --pairs 10
     python phat-training/gauntlet.py dev MSSV --pairs 20 --budget 0.55
 
+Điểm chấm như mùa giải (tools/tournament.py): thắng 3, hoà 1, thua 0 — tức một ván hoà
+đáng 1/3 trận thắng (`common.DRAW_PT`), không phải 0.5.
+
 Đối số đầu là bot cần đo; các đối số sau là đối thủ (tên trong submissions/
 hoặc đường dẫn .py). Mặc định bot dùng TIME_BUDGET/MAX_DEPTH của chính file đó;
 --budget/--opp-budget ghi đè để đo ở tốc độ máy chấm (ví dụ --budget 0.275 cho
@@ -17,7 +20,7 @@ from multiprocessing import Pool
 from pathlib import Path
 
 import evolve
-from common import SUBMISSIONS
+from common import SUBMISSIONS, rate
 
 
 def resolve(name):
@@ -66,7 +69,7 @@ def main():
             opp_budget if opp_budget is not None else "theo file"))
     for opp, (w, d, l) in res.items():
         print("  vs {:<14} W {:>3}  D {:>3}  L {:>3}  điểm {:.2f}".format(
-            opp, w, d, l, (w + 0.5 * d) / max(1, w + d + l)))
+            opp, w, d, l, rate(w, d, l)))
     print("({:.0f}s)".format(time.time() - t0))
 
 

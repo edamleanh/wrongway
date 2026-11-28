@@ -33,6 +33,7 @@ from common import (
     SUBMISSIONS,
     TRAIN_DIR,
     load_module,
+    score_of,
     write_weights,
 )
 
@@ -119,13 +120,6 @@ def match_jobs(a, b, n_pairs, seed0, cfg):
         jobs.append(((a, b, seed) + cfg, 0))  # a cầm quân 0
         jobs.append(((b, a, seed) + cfg, 1))  # a cầm quân 1
     return jobs
-
-
-def score_of(results):
-    total = 0.0
-    for winner, side in results:
-        total += 0.5 if winner is None else float(winner == side)
-    return total / max(1, len(results))
 
 
 def run_batches(pool, batches):

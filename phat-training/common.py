@@ -1,4 +1,4 @@
-"""Phần dùng chung cho phat-training: đường dẫn, nạp bot, ghi trọng số vào file nộp."""
+"""Phần dùng chung cho phat-training: đường dẫn, nạp bot, ghi trọng số, cách chấm điểm trận."""
 
 import importlib.util
 import json
@@ -82,3 +82,24 @@ def make_variant(weights, name):
     path.write_text(write_weights(BOT_FILE.read_text(encoding="utf-8"), weights),
                     encoding="utf-8")
     return path
+
+
+# ---------------------------------------------------------------- cách chấm điểm
+# Thang của mùa giải (tools/tournament.py): thắng 3, hoà 1, thua 0. Suy ra một ván hoà đáng đúng
+# 1/3 trận thắng; đừng chấm hoà 0,5 ở bất kỳ công cụ nào trong phat-training/.
+DRAW_PT = 1.0 / 3.0
+
+
+def game_pt(winner, side):
+    """Điểm của `side` trong một ván: 1 thắng, DRAW_PT hoà (winner None), 0 thua."""
+    return DRAW_PT if winner is None else float(winner == side)
+
+
+def score_of(results):
+    """Điểm trung bình từ danh sách (winner, side)."""
+    return sum(game_pt(w, s) for w, s in results) / max(1, len(results))
+
+
+def rate(w, d, l):
+    """Điểm trung bình từ tổng thắng/hoà/thua của một ô."""
+    return (w + DRAW_PT * d) / max(1, w + d + l)
